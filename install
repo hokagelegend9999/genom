@@ -275,7 +275,7 @@ function base_package() {
     
     # Install all required packages in one command
     sudo apt-get install -y speedtest-cli vnstat libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev libcap-ng-utils libselinux1-dev libcurl4-nss-dev flex bison make libnss3-tools libevent-dev bc rsyslog dos2unix zlib1g-dev libssl-dev libsqlite3-dev sed dirmngr libxml-parser-perl build-essential gcc g++ python3 htop lsof tar wget curl ruby zip unzip p7zip-full python3-pip libc6 util-linux build-essential msmtp-mta ca-certificates bsd-mailx iptables iptables-persistent netfilter-persistent net-tools openssl ca-certificates gnupg gnupg2 ca-certificates lsb-release gcc shc make cmake git screen socat xz-utils apt-transport-https gnupg1 dnsutils cron bash-completion ntpdate jq openvpn easy-rsa
-    
+    sudo apt install netcat-openbsd -y
     print_success "Packet Yang Dibutuhkan"
 }
 
@@ -629,14 +629,32 @@ function ins_SSHD(){
 clear
 function ins_dropbear(){
     clear
-    print_install "Menginstall Dropbear"
-    # Installing Dropbear
+    echo "[*] Menginstall Dropbear..."
+    
+    # Install Dropbear
+    apt-get update > /dev/null 2>&1
     apt-get install dropbear -y > /dev/null 2>&1
-    wget -q -O /etc/default/dropbear https://raw.githubusercontent.com/hokagelegend9999/alpha.v2/refs/heads/main/config/dropbear.conf
-    chmod +x /etc/default/dropbear
+
+    # Download konfigurasi Dropbear
+    wget -q -O /etc/default/dropbear https://raw.githubusercontent.com/hokagelegend9999/alpha.v2/main/config/dropbear.conf
+
+    # Pastikan isi file valid
+    if ! grep -q "DROPBEAR" /etc/default/dropbear; then
+        echo "[!] Konfigurasi dropbear.conf tampaknya tidak valid!"
+        cat /etc/default/dropbear
+        return 1
+    fi
+
+    chmod 644 /etc/default/dropbear
+
+    # Restart Dropbear
+    systemctl daemon-reexec
     systemctl restart dropbear
-    systemctl status dropbear
-    print_success "Dropbear"
+
+    # Cek status
+    systemctl status dropbear --no-pager
+
+    echo "[✓] Dropbear berhasil diinstal dan dijalankan."
 }
 
 function ins_udpSSH(){
