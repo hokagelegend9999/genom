@@ -174,7 +174,8 @@ function first_setup(){
         add-apt-repository -y ppa:vbernat/haproxy-2.8
 
         # Ganti 'oracular' ke 'jammy' agar PPA valid
-        sed -i 's/oracular/jammy/g' /etc/apt/sources.list.d/vbernat-ubuntu-haproxy-2.8*.list
+        sed -i 's/noble/jammy/g' /etc/apt/sources.list.d/vbernat-ubuntu-haproxy-2.8*.sources
+         sed -i 's/oracular/jammy/g' /etc/apt/sources.list.d/vbernat-ubuntu-haproxy-2.8*.sources
 
         apt-get update
         apt-get -y install haproxy=2.8.* socat
