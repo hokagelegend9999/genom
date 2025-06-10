@@ -3,7 +3,7 @@
 # ===============================================
 # XRAY Installation & Configuration Script
 # (VLESS over WebSocket with TLS on Port 443)
-# = Made for Ubuntu 24.04 (Debian-based)
+# = Dynamic IP, No UFW, Automatic Menu Call
 # ===============================================
 
 # --- Global Variables ---
@@ -13,7 +13,6 @@ XRAY_LOG_DIR="/var/log/xray"
 XRAY_TLS_DIR="/etc/xray/tls"
 XRAY_SERVICE_FILE="/etc/systemd/system/xray.service"
 MENU_SCRIPT_PATH="/usr/local/bin/xray_menu" # Path untuk menu script
-DEFAULT_UUID=$(uuidgen) # UUID default untuk user pertama
 
 # --- Colors for Output ---
 RED='\033[0;31m'
@@ -45,7 +44,7 @@ install_prerequisites() {
 }
 
 cleanup_old_installations() {
-    print_status "Cleaning up old XRAY, HAProxy, Nginx, OpenVPN, NoobzVpn installations..."
+    print_status "Cleaning up old XRAY, HAProxy, Nginx, OpenVPN, NoobzVpn installations and ensuring ports are free..."
     sudo systemctl stop xray.service &>/dev/null || true
     sudo systemctl disable xray.service &>/dev/null || true
     sudo rm -f "$XRAY_SERVICE_FILE" &>/dev/null
@@ -65,18 +64,12 @@ cleanup_old_installations() {
     sudo systemctl stop noobzvpns.service &>/dev/null || true
     sudo systemctl disable noobzvpns.service &>/dev/null || true
 
-    print_status "Configuring UFW firewall..."
-    sudo ufw default deny incoming || print_error "Failed to set UFW default incoming policy."
-    sudo ufw default allow outgoing || print_error "Failed to set UFW default outgoing policy."
-    sudo ufw allow ssh || print_error "Failed to allow SSH in UFW."
-    sudo ufw allow http || print_error "Failed to allow HTTP (port 80) in UFW."
-    sudo ufw allow https || print_error "Failed to allow HTTPS (port 443) in UFW."
-    sudo ufw enable --force || print_error "Failed to enable UFW."
+    print_status "${RED}WARNING: UFW is NOT being configured. Ensure your VPS/Cloud provider's firewall rules (Security Group) are set up correctly for ports 80, 443, and 22!${NC}"
     
     print_status "Verifying ports 80 and 443 are free..."
     sleep 2 # Give services a moment to stop
     if sudo ss -tulpn | grep -E ':(80|443)'; then
-        print_error "Ports 80 or 443 are still in use. Please manually stop conflicting services."
+        print_error "Ports 80 or 443 are still in use. Please manually stop conflicting services and re-run."
         exit 1
     fi
 }
@@ -118,8 +111,14 @@ setup_acme_sh() {
     sudo systemctl stop nginx &>/dev/null || true
     sleep 1 # Give it a moment to stop
     
-    print_status "Issuing SSL certificate for $DOMAIN via acme.sh..."
-    "$ACME_SH_CMD" --issue -d "$DOMAIN" --webroot /var/www/html || print_error "Failed to issue certificate. Check your domain's DNS A record or firewall (port 80)."
+    print_status "Issuing SSL certificate for $DOMAIN via acme.sh (HTTP Challenge)..."
+    "$ACME_SH_CMD" --issue -d "$DOMAIN" --webroot /var/www/html || {
+        print_error "Failed to issue certificate. This is critical!"
+        print_error "Check your domain's DNS A record (should point to $MY_PUBLIC_IP)."
+        print_error "Check your VPS firewall (Security Group/Network ACL) allows incoming on port 80 and 443."
+        print_error "You can try running 'acme.sh --issue -d $DOMAIN --webroot /var/www/html/ --debug' for more info."
+        exit 1
+    }
 
     # Install certificate for XRAY
     sudo mkdir -p "$XRAY_TLS_DIR" || print_error "Failed to create XRAY TLS directory."
@@ -282,7 +281,7 @@ generate_xray_config() {
 }
 EOF
     print_status "XRAY config generated with UUID: ${YELLOW}$NEW_UUID${NC}"
-    DEFAULT_UUID="$NEW_UUID" # Store for final message
+    DEFAULT_UUID_INSTALL="$NEW_UUID" # Store for final message
 }
 
 create_xray_service_file() {
@@ -337,6 +336,13 @@ start_and_verify_xray() {
 clear
 print_header
 
+MY_PUBLIC_IP=$(curl -sS ifconfig.me)
+if [ -z "$MY_PUBLIC_IP" ]; then
+    print_error "Failed to detect public IP address. Check internet connection."
+    exit 1
+fi
+echo -e "${YELLOW}Detected Public IP: $MY_PUBLIC_IP${NC}"
+
 read -p "Enter your domain (e.g., yourdomain.com): " DOMAIN
 read -p "Enter your admin email for acme.sh (e.g., admin@yourdomain.com): " ADMIN_EMAIL
 
@@ -345,8 +351,11 @@ if [ -z "$DOMAIN" ] || [ -z "$ADMIN_EMAIL" ]; then
     exit 1
 fi
 
-# Store domain for menu script
-echo "$DOMAIN" | sudo tee /etc/xray/domain.txt >/dev/null
+print_status "${RED}IMPORTANT: Ensure your domain's A record ($DOMAIN) points to your VPS IP ($MY_PUBLIC_IP) in your DNS provider! This is CRITICAL for SSL certificate issuance.${NC}"
+read -p "Press Enter to continue after verifying DNS..."
+
+# Store domain and UUID for menu script
+echo "$DOMAIN" | sudo tee "$XRAY_CONFIG_DIR/domain.txt" >/dev/null
 
 install_prerequisites
 cleanup_old_installations
@@ -607,19 +616,28 @@ EOF_MENU
 
 sudo chmod +x "$MENU_SCRIPT_PATH" || print_error "Failed to make menu script executable."
 
+# --- Create alias for 'xray_menu' command ---
+# For current user (root)
+echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "$HOME/.bashrc" >/dev/null
+echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "$HOME/.profile" >/dev/null
+
+# For any other user, they would need to manually add the alias or ensure /usr/local/bin is in their PATH
+# For system-wide immediate effect, also symlink
+sudo ln -sf "$MENU_SCRIPT_PATH" /usr/local/bin/menu
+
 print_header
 echo -e "${GREEN}XRAY Installation Complete!${NC}"
-echo -e "Your primary VLESS UUID is: ${YELLOW}$DEFAULT_UUID${NC}"
-echo -e "To manage XRAY users and settings, run the menu script:"
-echo -e "  ${YELLOW}sudo $MENU_SCRIPT_PATH${NC}"
+echo -e "Your primary VLESS UUID is: ${YELLOW}$DEFAULT_UUID_INSTALL${NC}"
+echo -e "To manage XRAY users and settings, simply type: ${YELLOW}menu${NC}"
 echo -e "\n${YELLOW}Remember to configure your client with these details:${NC}"
 echo -e "  Protocol: VLESS"
 echo -e "  Address: ${YELLOW}$DOMAIN${NC}"
 echo -e "  Port: 443"
-echo -e "  UUID: ${YELLOW}$DEFAULT_UUID${NC}"
+echo -e "  UUID: ${YELLOW}$DEFAULT_UUID_INSTALL${NC}"
 echo -e "  Security: TLS"
 echo -e "  SNI: ${YELLOW}$DOMAIN${NC}"
 echo -e "  Network: ws"
 echo -e "  Path: /vlessws"
 echo -e "  Flow: (empty/default)"
+echo -e "\n${RED}IMPORTANT: Ensure your VPS/Cloud provider's firewall allows incoming connections on ports 80, 443, and 22!${NC}"
 echo -e "${GREEN}=====================================================${NC}"
