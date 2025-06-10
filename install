@@ -4,6 +4,7 @@
 # XRAY Installation & Configuration Script
 # (VLESS over WebSocket with TLS on Port 443)
 # = Dynamic IP, No UFW, Automatic Menu Call
+# = SSL via DNS-01 Challenge (Cloudflare)
 # ===============================================
 
 # --- Global Variables ---
@@ -38,9 +39,9 @@ print_error() {
 # --- Main Installation Functions ---
 
 install_prerequisites() {
-    print_status "Installing prerequisites (curl, wget, unzip, socat, uuid-runtime, nginx)..."
+    print_status "Installing prerequisites (curl, wget, unzip, socat, uuid-runtime, jq)..."
     sudo apt update || print_error "Failed to update apt. Please check your internet connection or apt sources."
-    sudo apt install -y curl wget unzip socat uuid-runtime nginx || print_error "Failed to install prerequisites."
+    sudo apt install -y curl wget unzip socat uuid-runtime jq || print_error "Failed to install prerequisites."
 }
 
 cleanup_old_installations() {
@@ -64,7 +65,7 @@ cleanup_old_installations() {
     sudo systemctl stop noobzvpns.service &>/dev/null || true
     sudo systemctl disable noobzvpns.service &>/dev/null || true
 
-    print_status "${RED}WARNING: UFW is NOT being configured. Ensure your VPS/Cloud provider's firewall rules (Security Group) are set up correctly for ports 80, 443, and 22!${NC}"
+    print_status "${RED}WARNING: No OS-level firewall (like UFW) is being configured. Ensure your VPS/Cloud provider's firewall rules (Security Group) are set up correctly for ports 80, 443, and 22!${NC}"
     
     print_status "Verifying ports 80 and 443 are free..."
     sleep 2 # Give services a moment to stop
@@ -88,8 +89,9 @@ install_xray_binary() {
     sudo rm -rf /tmp/xray_temp/ &>/dev/null
 }
 
-setup_acme_sh() {
-    print_status "Setting up acme.sh for SSL certificate..."
+setup_acme_sh_dns_cf() {
+    print_status "Setting up acme.sh for SSL certificate (DNS-01 Challenge with Cloudflare)..."
+    
     # Check if acme.sh is already installed
     if ! [ -f "$HOME/.acme.sh/acme.sh" ]; then
         curl https://get.acme.sh | sh -s email="$ADMIN_EMAIL" || print_error "Failed to install acme.sh."
@@ -102,23 +104,30 @@ setup_acme_sh() {
         exit 1
     fi
 
-    # Issue certificate using webroot
-    # Ensure nginx webroot is accessible
-    sudo mkdir -p /var/www/html/.well-known/acme-challenge || print_error "Failed to create webroot directory for acme.sh."
-    sudo chown -R www-data:www-data /var/www/html/ || print_error "Failed to set ownership for webroot." # Nginx uses www-data
+    # Export Cloudflare API credentials
+    # IMPORTANT: USER MUST REPLACE THIS WITH THEIR ACTUAL CLOUDFLARE GLOBAL API KEY
+    export CF_Key="ab8d0901acb186291e58f21359d07e7b847dc" # <<< GANTI INI DENGAN KUNCI API CLOUDFLARE ANDA!
+    export CF_Email="$ADMIN_EMAIL"
 
-    # Stop Nginx if it's running, to free up port 80 for acme.sh standalone challenge
-    sudo systemctl stop nginx &>/dev/null || true
-    sleep 1 # Give it a moment to stop
-    
-    print_status "Issuing SSL certificate for $DOMAIN via acme.sh (HTTP Challenge)..."
-    "$ACME_SH_CMD" --issue -d "$DOMAIN" --webroot /var/www/html || {
-        print_error "Failed to issue certificate. This is critical!"
-        print_error "Check your domain's DNS A record (should point to $MY_PUBLIC_IP)."
-        print_error "Check your VPS firewall (Security Group/Network ACL) allows incoming on port 80 and 443."
-        print_error "You can try running 'acme.sh --issue -d $DOMAIN --webroot /var/www/html/ --debug' for more info."
+    if [ "$CF_Key" == "ab8d0901acb186291e58f21359d07e7b847dc" ]; then
+        print_error "Cloudflare Global API Key is not set in the script. Please edit install_xray.sh and replace 'YOUR_CLOUDFLARE_GLOBAL_API_KEY_HERE' with your actual key."
+        exit 1
+    fi
+
+    # Issue certificate using DNS-01 Cloudflare method
+    print_status "Issuing SSL certificate for $DOMAIN via acme.sh (DNS-01 Cloudflare)..."
+    "$ACME_SH_CMD" --issue -d "$DOMAIN" --dns dns_cf || {
+        print_error "Failed to issue certificate via DNS-01 Challenge. This is critical!"
+        print_error "Ensure your Cloudflare Global API Key is correct in the script."
+        print_error "Ensure your domain '$DOMAIN' is managed by Cloudflare."
+        print_error "Ensure your domain's A record points to $MY_PUBLIC_IP."
+        print_error "You can try running '$ACME_SH_CMD --issue -d $DOMAIN --dns dns_cf --debug' for more info."
         exit 1
     }
+
+    # Unset Cloudflare variables for security
+    unset CF_Key
+    unset CF_Email
 
     # Install certificate for XRAY
     sudo mkdir -p "$XRAY_TLS_DIR" || print_error "Failed to create XRAY TLS directory."
@@ -131,15 +140,11 @@ setup_acme_sh() {
     sudo chown www-data:www-data "$XRAY_TLS_DIR/private.key" "$XRAY_TLS_DIR/fullchain.pem" || print_error "Failed to set ownership for TLS files."
     sudo chmod 600 "$XRAY_TLS_DIR/private.key" || print_error "Failed to set permissions for private key."
     sudo chmod 644 "$XRAY_TLS_DIR/fullchain.pem" || print_error "Failed to set permissions for fullchain cert."
-
-    # Start Nginx again if it was originally running/needed (optional, if you use it for other web services)
-    # sudo systemctl start nginx &>/dev/null || true
 }
 
 generate_xray_config() {
     print_status "Generating XRAY configuration ($XRAY_CONFIG_DIR/config.json)..."
-    # Ensure UUID is generated fresh if not already
-    NEW_UUID=$(uuidgen)
+    NEW_UUID=$(uuidgen) # Generate a fresh UUID for the primary user
 
     cat <<EOF | sudo tee "$XRAY_CONFIG_DIR/config.json" >/dev/null
 {
@@ -327,7 +332,7 @@ start_and_verify_xray() {
     if sudo ss -tulpn | grep -E ':(443)' | grep "xray"; then
         echo -e "${GREEN}XRAY is listening on port 443!${NC}"
     else
-        print_error "XRAY is NOT listening on port 443. Check firewall or XRAY logs."
+        print_error "XRAY is NOT listening on port 443. Check your VPS/Cloud provider's firewall (Security Group/Network ACL) or XRAY logs."
         exit 1
     fi
 }
@@ -352,7 +357,8 @@ if [ -z "$DOMAIN" ] || [ -z "$ADMIN_EMAIL" ]; then
 fi
 
 print_status "${RED}IMPORTANT: Ensure your domain's A record ($DOMAIN) points to your VPS IP ($MY_PUBLIC_IP) in your DNS provider! This is CRITICAL for SSL certificate issuance.${NC}"
-read -p "Press Enter to continue after verifying DNS..."
+print_status "${RED}As we are using Cloudflare DNS-01 method, ensure your domain is added to Cloudflare and the API Key is correct in the script.${NC}"
+read -p "Press Enter to continue after verifying DNS and Cloudflare API Key..."
 
 # Store domain and UUID for menu script
 echo "$DOMAIN" | sudo tee "$XRAY_CONFIG_DIR/domain.txt" >/dev/null
@@ -360,7 +366,7 @@ echo "$DOMAIN" | sudo tee "$XRAY_CONFIG_DIR/domain.txt" >/dev/null
 install_prerequisites
 cleanup_old_installations
 install_xray_binary
-setup_acme_sh
+setup_acme_sh_dns_cf
 generate_xray_config
 create_xray_service_file
 start_and_verify_xray
@@ -519,7 +525,7 @@ show_config_details() {
 change_domain() {
     print_status "Changing domain and re-issuing SSL certificate..."
     read -p "Enter new domain: " NEW_DOMAIN
-    read -p "Enter your admin email for acme.sh: " NEW_ADMIN_EMAIL
+    read -p "Enter your admin email for acme.sh (e.g., admin@yourdomain.com): " NEW_ADMIN_EMAIL
 
     if [ -z "$NEW_DOMAIN" ] || [ -z "$NEW_ADMIN_EMAIL" ]; then
         print_error "Domain and Email cannot be empty. Aborting."
@@ -529,9 +535,23 @@ change_domain() {
     # Stop XRAY temporarily
     sudo systemctl stop xray.service || print_error "Failed to stop XRAY."
 
-    # Issue new cert
+    # Export Cloudflare API credentials for acme.sh
+    export CF_Key="YOUR_CLOUDFLARE_GLOBAL_API_KEY_HERE" # <<< GANTI INI DENGAN KUNCI API CLOUDFLARE ANDA!
+    export CF_Email="$NEW_ADMIN_EMAIL"
+
+    if [ "$CF_Key" == "YOUR_CLOUDFLARE_GLOBAL_API_KEY_HERE" ]; then
+        print_error "Cloudflare Global API Key is not set in the script. Please edit install_xray.sh and replace 'YOUR_CLOUDFLARE_GLOBAL_API_KEY_HERE' with your actual key."
+        sudo systemctl start xray.service # Try to start XRAY back
+        return
+    fi
+
     ACME_SH_CMD="$HOME/.acme.sh/acme.sh"
-    "$ACME_SH_CMD" --issue -d "$NEW_DOMAIN" --webroot /var/www/html/ || print_error "Failed to issue new certificate. Check DNS or firewall (port 80)."
+    "$ACME_SH_CMD" --issue -d "$NEW_DOMAIN" --dns dns_cf || {
+        print_error "Failed to issue new certificate. Check DNS or Cloudflare API Key."
+        unset CF_Key; unset CF_Email; # Unset for security
+        sudo systemctl start xray.service # Try to start XRAY back
+        return
+    }
 
     # Install new cert for XRAY
     "$ACME_SH_CMD" --install-cert -d "$NEW_DOMAIN" \
@@ -547,6 +567,8 @@ change_domain() {
                                                     .streamSettings.wsSettings.headers.Host = $domain')
     echo "$UPDATED_CONFIG" | write_xray_config
     echo "$NEW_DOMAIN" | sudo tee "$DOMAIN_FILE" >/dev/null # Update domain file
+
+    unset CF_Key; unset CF_Email; # Unset for security
 
     restart_xray
     echo -e "${GREEN}Domain updated to $NEW_DOMAIN!${NC}"
@@ -621,7 +643,6 @@ sudo chmod +x "$MENU_SCRIPT_PATH" || print_error "Failed to make menu script exe
 echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "$HOME/.bashrc" >/dev/null
 echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "$HOME/.profile" >/dev/null
 
-# For any other user, they would need to manually add the alias or ensure /usr/local/bin is in their PATH
 # For system-wide immediate effect, also symlink
 sudo ln -sf "$MENU_SCRIPT_PATH" /usr/local/bin/menu
 
