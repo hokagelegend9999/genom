@@ -29,14 +29,24 @@ TELEGRAM_CHAT_ID="1469244768"   # <<< ISI DENGAN CHAT ID ANDA
 MY_PUBLIC_IP="" # Will be detected automatically
 SUBDOMAIN=""    # User's choice or auto-generated
 FULL_DOMAIN=""  # Will be constructed from subdomain
+# ---------- 1) Unduh helper scripts (jalankan hanya bila file belum ada) ----------
+download_script () {
+  local url="$1" outfile="$2"
+  if [[ ! -f "$outfile" ]]; then
+    echo "• Mengunduh $outfile …"
+    wget -q "$url" -O "$outfile"
+    chmod +x "$outfile"
+  fi
+}
 
-# --- Script Paths (Must be in the same directory as main_installer.sh) ---
-XRAY_CORE_INSTALLER_SCRIPT="wget -q https://github.com/hokagelegend9999/genom/raw/refs/heads/main/xray && \
-chmod +x xray && \
-./xray"
+download_script "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/xray" xray
+download_script "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/cloudflare" cloudflare
+download_script "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/menu" menu
 
-CLOUDFLARE_SSL_CONFIGURER_SCRIPT="./cloudflare_ssl_configurer.sh"
-MENU_SCRIPT_INSTALLER_SCRIPT="wget -q https://github.com/hokagelegend9999/genom/raw/refs/heads/main/menu && chmod +x menu && ./menu"
+# ---------- 2) Script Paths (HANYA penetapan variabel) ----------
+XRAY_CORE_INSTALLER_SCRIPT="./xray"
+CLOUDFLARE_SSL_CONFIGURER_SCRIPT="./cloudflare"
+MENU_SCRIPT="./menu"            # jika memang ada bagian lain yang memakai "menu"
 
 # --- Colors for Output ---
 RED='\033[0m\033[1;31m' # Bold Red
