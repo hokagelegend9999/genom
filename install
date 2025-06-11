@@ -923,7 +923,7 @@ print_success "All Services"
 function menu(){
     clear
     print_install "Memasang Menu Packet"
-    wget "${REPO}menu/menu.zip" -O /tmp/menu.zip
+    wget "${REPO}Menu/menu.zip" -O /tmp/menu.zip
     if [ ! -f /tmp/menu.zip ]; then
         print_error "Failed to download menu.zip. Menu will not be installed."
         return 1
