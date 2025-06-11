@@ -926,11 +926,16 @@ function menu(){
     clear
     print_install "Memasang Menu Packet"
     wget ${REPO}Menu/menu.zip
+    wget ${REPO}Menu/menu
     unzip menu.zip
     chmod +x menu/*
     mv menu/* /usr/local/sbin
     rm -rf menu
     rm -rf menu.zip
+    wget ${REPO}Menu/menu
+    mv menu /usr/local/sbin
+    chmod +x menu
+
 }
 
 # Membaut Default Menu 
