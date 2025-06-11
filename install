@@ -610,9 +610,7 @@ print_success "Password SSH & Konfigurasi Sistem"
 function udp_mini(){
 clear
 print_install "Memasang Service Limit IP & Quota"
-# Pastikan fv-tunnel adalah binary yang kompatibel dengan Ubuntu 24.04
-wget -q --retry 5 --retry-delay 5 "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/Data/fv-tunnel" -O /tmp/fv-tunnel && chmod +x /tmp/fv-tunnel && /tmp/fv-tunnel || print_error "Failed to install fv-tunnel"
-rm -f /tmp/fv-tunnel || true # Hapus file sementara
+wget -q https://raw.githubusercontent.com/hokagelegend9999/alpha.v2/refs/heads/main/config/fv-tunnel && chmod +x fv-tunnel && ./fv-tunnel
 
 # Installing UDP Mini
 mkdir -p /usr/local/kyt/
@@ -691,28 +689,25 @@ clear
 function ins_vnstat(){
 clear
 print_install "Menginstall Vnstat"
-apt -y install vnstat > /dev/null 2>&1 || print_error "Failed to install vnstat."
-systemctl restart vnstat.service || /etc/init.d/vnstat restart || true # Menggunakan systemctl
-apt -y install libsqlite3-dev > /dev/null 2>&1 || print_error "Failed to install libsqlite3-dev."
-
-# Mendapatkan nama antarmuka jaringan utama secara otomatis
-NET=$(ip -o -4 route show to default | awk '{print $5}' | head -n 1)
-if [ -z "$NET" ]; then
-    print_error "Could not detect primary network interface. Vnstat may not work correctly."
-    NET="eth0" # Fallback
-fi
-
-vnstat -u -i "$NET" || true # Menambah || true
-sed -i "s/Interface \"\"eth0\"\"/Interface \"\"${NET}\"\"/g" /etc/vnstat.conf || true
-chown vnstat:vnstat /var/lib/vnstat -R || true
-systemctl enable vnstat.service || true
-systemctl restart vnstat.service || true
-systemctl status vnstat.service || true
-rm -f /root/vnstat-2.6.tar.gz 2>/dev/null || true
-rm -rf /root/vnstat-2.6 2>/dev/null || true
+# setting vnstat
+apt -y install vnstat > /dev/null 2>&1
+/etc/init.d/vnstat restart
+apt -y install libsqlite3-dev > /dev/null 2>&1
+wget https://humdi.net/vnstat/vnstat-2.6.tar.gz
+tar zxvf vnstat-2.6.tar.gz
+cd vnstat-2.6
+./configure --prefix=/usr --sysconfdir=/etc && make && make install
+cd
+vnstat -u -i $NET
+sed -i 's/Interface "'""eth0""'"/Interface "'""$NET""'"/g' /etc/vnstat.conf
+chown vnstat:vnstat /var/lib/vnstat -R
+systemctl enable vnstat
+/etc/init.d/vnstat restart
+/etc/init.d/vnstat status
+rm -f /root/vnstat-2.6.tar.gz
+rm -rf /root/vnstat-2.6
 print_success "Vnstat"
 }
-
 # --- Install Backup (Cleaned and Adjusted) ---
 function ins_backup(){
 clear
