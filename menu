@@ -7,12 +7,11 @@
 
 # --- Arguments from main_installer.sh ---
 MENU_SCRIPT_PATH="$1"
-XRAY_CONFIG_FILE_INSTALL="$2" # Path to config.json
-DOMAIN_FILE_INSTALL="$3"      # Path to domain.txt
-XRAY_BIN_PATH_INSTALL="$4"    # Path to xray binary
-XRAY_TLS_DIR_INSTALL="$5"     # Path to TLS certs
-CLOUDFLARE_API_KEY_INSTALL="$6" # Cloudflare API Key for menu script
-ADMIN_EMAIL_INSTALL="$7"      # Admin Email for menu script
+XRAY_CONFIG_FILE_PATH="$2" # Path to config.json
+DOMAIN_FILE_PATH="$3"      # Path to domain.txt
+XRAY_BIN_PATH="$4"         # Path to xray binary
+XRAY_TLS_DIR="$5"          # Path to TLS certs
+XRAY_CONFIG_DIR_PATH="$6"  # Path to XRAY_CONFIG_DIR for cf_api.conf
 
 # --- Colors for Output (copied from main script for local scope) ---
 RED='\033[0m\033[1;31m'
@@ -34,12 +33,11 @@ cat << 'EOF_MENU_SCRIPT' | sudo tee "$MENU_SCRIPT_PATH" >/dev/null
 # ===============================================
 
 # --- Global Variables (passed from installer) ---
-XRAY_CONFIG_FILE="${XRAY_CONFIG_FILE_INSTALL_VAR}" # Passed config file path
-XRAY_BIN_PATH="${XRAY_BIN_PATH_INSTALL_VAR}"       # Passed XRAY binary path
-DOMAIN_FILE="${DOMAIN_FILE_INSTALL_VAR}"           # Passed domain file path
-XRAY_TLS_DIR="${XRAY_TLS_DIR_INSTALL_VAR}"         # Passed TLS directory path
-CLOUDFLARE_API_KEY_MENU="${CLOUDFLARE_API_KEY_INSTALL_VAR}" # Passed Cloudflare API Key
-ADMIN_EMAIL_MENU="${ADMIN_EMAIL_INSTALL_VAR}"     # Passed Admin Email
+XRAY_CONFIG_FILE="${XRAY_CONFIG_FILE_PATH_VAR}" # Path to config.json
+XRAY_BIN_PATH="${XRAY_BIN_PATH_VAR}"            # Path to xray binary
+DOMAIN_FILE="${DOMAIN_FILE_PATH_VAR}"           # Path to domain.txt
+XRAY_TLS_DIR="${XRAY_TLS_DIR_VAR}"              # Path to TLS certs
+CLOUDFLARE_API_CRED_FILE="${CLOUDFLARE_API_CRED_FILE_VAR}" # Path to CF API creds
 
 # --- Colors for Output ---
 RED='\033[0;31m'
@@ -213,13 +211,22 @@ change_domain() {
     # Stop XRAY temporarily
     sudo systemctl stop xray.service || print_menu_error "Failed to stop XRAY."
 
-    # Export Cloudflare API credentials for acme.sh (from variable passed during install)
-    export CF_Key="$CLOUDFLARE_API_KEY_MENU" 
-    export CF_Email="$NEW_ADMIN_EMAIL_INPUT"
+    # Read Cloudflare API credentials from the secure file
+    if [ -f "$CLOUDFLARE_API_CRED_FILE" ]; then
+        source "$CLOUDFLARE_API_CRED_FILE" # Source the secure file (will set CLOUDFLARE_API_KEY and ADMIN_EMAIL)
+    else
+        print_menu_error "Cloudflare API credentials file not found: $CLOUDFLARE_API_CRED_FILE. Cannot proceed."
+        sudo systemctl start xray.service
+        return
+    fi
 
-    if [ -z "$CF_Key" ]; then 
-        print_menu_error "Cloudflare Global API Key is not set in the menu script. Please contact support or check install_xray.sh."
-        sudo systemctl start xray.service # Try to start XRAY back
+    # Export Cloudflare API credentials for acme.sh
+    export CF_Key="$CLOUDFLARE_API_KEY" # Use variable from sourced file
+    export CF_Email="$NEW_ADMIN_EMAIL_INPUT" # Use provided email for this specific run
+
+    if [ -z "$CF_Key" ]; then # Check if key is empty from sourced file
+        print_menu_error "Cloudflare Global API Key is empty from $CLOUDFLARE_API_CRED_FILE. Please check its content."
+        sudo systemctl start xray.service
         return
     fi
 
@@ -299,29 +306,22 @@ main_menu() {
                 ;;
             0) echo -e "${YELLOW}Exiting. Goodbye!${NC}"; exit 0 ;;
             *) echo -e "${RED}Invalid choice. Please try again.${NC}"; sleep 1 ;;
-        esac # <-- Fixed here too
+        esac 
         echo -e "\nPress Enter to continue..."
         read -s # Read silently
     done
 }
 
-# --- Main Script Execution (Initial call for this script) ---
-# Check for jq, as it's essential for JSON manipulation
-if ! command -v jq &>/dev/null; then
-    echo -e "${RED}jq is not installed. Please install it: sudo apt install -y jq${NC}"
-    exit 1
-fi
-
 main_menu # Call the main menu function to start the script
 EOF_MENU_SCRIPT
-" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$CLOUDFLARE_API_KEY" "$ADMIN_EMAIL"
+" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$XRAY_CONFIG_DIR/cf_api.conf" # Pass CF API cred file path
 
 sudo chmod +x "$MENU_SCRIPT_PATH" || print_error "Failed to make menu script executable."
 
 # --- Create alias for 'xray_menu' command ---
 # For current user (root)
 echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "$HOME/.bashrc" >/dev/null
-echo "alias menu='sudo $HOME/.profile'" | sudo tee -a "$HOME/.profile" >/dev/null # Fix: was XRAY_MENU_PATH
+echo "alias menu='sudo $HOME/.profile'" | sudo tee -a "$HOME/.profile" >/dev/null
 echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "/root/.bashrc" >/dev/null # For root user
 echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "/root/.profile" >/dev/null # For root user
 
