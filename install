@@ -15,7 +15,7 @@ NC='\e[0m'
 red='\e[1;31m'
 green='\e[0;32m'
 purple="\e[0;33m"
-yell="\e[1;33m" # Menambahkan definisi yell
+yell="\e[1;33m"
 
 # --- Initial Clear and IP Export ---
 clear
@@ -27,14 +27,12 @@ clear;clear;clear
 clear
 
 # --- Script Validation ---
-# Menggunakan checkip.amazonaws.com atau ifconfig.me karena icanhazip.com kadang bermasalah
 ipsaya=$(curl -sS --max-time 10 ipv4.icanhazip.com || curl -sS --max-time 10 checkip.amazonaws.com || curl -sS --max-time 10 ifconfig.me)
 
 # Menggunakan NTP server standar untuk mendapatkan waktu yang lebih reliable
 data_server=$(ntpdate -q pool.ntp.org 2>/dev/null | grep "stratum 2" | awk '{print $4}' | xargs -I {} date -d {} +"%Y-%m-%d" 2>/dev/null)
-# Fallback jika ntpdate gagal mendapatkan waktu
 if [ -z "$data_server" ]; then
-    data_server=$(date +"%Y-%m-%d") # Gunakan waktu lokal jika tidak bisa mendapatkan dari NTP
+    data_server=$(date +"%Y-%m-%d")
 fi
 date_list=$(date +"%Y-%m-%d" -d "$data_server")
 
@@ -75,7 +73,7 @@ else
 fi
 
 # --- IP Address Validating ---
-if [[ -z "$IP" ]]; then # Gunakan -z untuk cek string kosong
+if [[ -z "$IP" ]]; then
     echo -e "${ERROR} IP Address (${YELLOW}Not Detected${NC})"
 else
     echo -e "${OK} IP Address (${green}$IP${NC})"
@@ -103,7 +101,7 @@ REPO="https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/"
 # --- Time Measurement ---
 start=$(date +%s)
 secs_to_human() {
-    echo "Installation time : $((${1} / 3600)) hours $(((${1} / 60) % 60)) minute's $((${1} % 60)) seconds"
+    echo "Installation time : $((${1} / 3600)) hours $(((${1} / 60) % 60)) minute's $((${1} / 60) % 60)) seconds"
 }
 
 # --- Status Functions ---
@@ -131,11 +129,11 @@ function print_success() {
 # --- Create Xray Directory (Adjusted) ---
 print_install "Membuat direktori xray"
 mkdir -p /etc/xray
-curl -sS --max-time 10 ifconfig.me > /etc/xray/ipvps # Menggunakan -S dan max-time
+curl -sS --max-time 10 ifconfig.me > /etc/xray/ipvps
 touch /etc/xray/domain
 mkdir -p /var/log/xray
-chown www-data:www-data /var/log/xray # Menggunakan grup juga
-chmod 755 /var/log/xray # Permission yang lebih tepat
+chown www-data:www-data /var/log/xray
+chmod 755 /var/log/xray
 touch /var/log/xray/access.log
 touch /var/log/xray/error.log
 mkdir -p /var/lib/kyt >/dev/null 2>&1
@@ -152,7 +150,7 @@ esac
 done < /proc/meminfo
 Ram_Usage="$((mem_used / 1024))"
 Ram_Total="$((mem_total / 1024))"
-export tanggal=$(date +"%d-%m-%Y - %X") # Tidak perlu -d "0 days"
+export tanggal=$(date +"%d-%m-%Y - %X")
 export OS_Name=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/PRETTY_NAME//g' | sed 's/=//g' | sed 's/"//g')
 export Kernel=$(uname -r)
 export Arch=$(uname -m)
@@ -167,11 +165,9 @@ function first_setup(){
     if [[ "$(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g')" == "ubuntu" ]]; then
         echo "Setup Dependencies $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
         sudo apt update -y
-        # software-properties-common masih diperlukan untuk add-apt-repository jika digunakan
         apt-get install --no-install-recommends software-properties-common -y
     elif [[ "$(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g')" == "debian" ]]; then
         echo "Setup Dependencies For OS Is $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
-        # apt-get install --no-install-recommends software-properties-common -y # Tambahkan ini jika Debian juga butuh
     else
         echo -e " Your OS Is Not Supported ($(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g') )"
         exit 1
@@ -200,25 +196,21 @@ function base_package() {
     # Minimal update dan upgrade sebelum instalasi paket
     apt update -y || print_error "Failed to update package lists."
     apt upgrade -y || print_error "Failed to upgrade packages."
-    apt full-upgrade -y || print_error "Failed to full-upgrade packages." # Lebih aman pakai apt full-upgrade
+    apt full-upgrade -y || print_error "Failed to full-upgrade packages."
 
     # --- PENTING: Instal jq secara terpisah dan lebih awal ---
-    # Ini memastikan jq tersedia untuk skrip lain yang mungkin membutuhkannya.
     print_install "Memasang jq untuk pemrosesan JSON..."
     apt install -y jq || print_error "Gagal menginstal jq. Beberapa fungsi mungkin tidak berjalan."
     print_success "jq berhasil dipasang."
-    # --- Akhir instalasi jq terpisah ---
-
 
     # Paket-paket dasar
-    # Ganti 'netcat' dengan 'netcat-traditional'
     apt install -y zip pwgen openssl netcat-traditional socat cron bash-completion figlet || print_error "Failed to install core packages."
 
     # Time synchronization
-    systemctl enable chrony.service || true # Konsisten gunakan chrony.service
-    systemctl restart chrony.service || true # Konsisten gunakan chrony.service
-    chronyc sourcestats -v || true # Add || true for non-critical commands
-    chronyc tracking -v || true # Add || true for non-critical commands
+    systemctl enable chrony.service || true
+    systemctl restart chrony.service || true
+    chronyc sourcestats -v || true
+    chronyc tracking -v || true
     
     apt install -y sudo ruby || print_error "Failed to install sudo or ruby."
     gem install lolcat || print_error "Failed to install lolcat gem."
@@ -235,15 +227,20 @@ function base_package() {
     # iptables-persistent
     echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
     echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+    sudo apt install --reinstall iptables-persistent -y > /dev/null 2>&1 || print_error "Failed to reinstall iptables-persistent."
+    sudo iptables-save > /etc/iptables/rules.v4 || print_error "Failed to save iptables IPv4 rules."
+    sudo ip6tables-save > /etc/iptables/rules.v6 || print_error "Failed to save iptables IPv6 rules."
+    sudo systemctl restart netfilter-persistent.service || true # Gunakan yang benar
+    sudo systemctl enable netfilter-persistent.service || true # Pastikan aktif
 
     # Paket-paket tambahan (jq dihapus dari sini karena sudah diinstal di atas)
     apt-get install -y speedtest-cli vnstat libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev \
         libcap-ng-utils libselinux1-dev libcurl4-nss-dev flex bison make libnss3-tools libevent-dev bc rsyslog \
         dos2unix zlib1g-dev libssl-dev libsqlite3-dev sed dirmngr libxml-parser-perl build-essential gcc g++ \
         python3 htop lsof tar wget curl ruby zip unzip p7zip-full python3-pip libc6 util-linux msmtp-mta \
-        ca-certificates bsd-mailx iptables iptables-persistent netfilter-persistent net-tools openssl gnupg \
+        ca-certificates bsd-mailx iptables netfilter-persistent net-tools openssl gnupg \
         gnupg2 lsb-release gcc shc make cmake git screen socat xz-utils apt-transport-https dnsutils \
-        cron openvpn easy-rsa haproxy || print_error "Failed to install additional packages." # jq dihapus dari sini
+        || print_error "Failed to install additional packages."
 
     print_success "Packet Yang Dibutuhkan"
 }
@@ -265,41 +262,32 @@ echo ""
 if [[ "$host" == "1" ]]; then
     echo -e "    \e[1;32mPlease Enter Your Subdomain ${NC}"
     read -p "    Subdomain: " host1
-    echo "IP=" >> /var/lib/kyt/ipvps.conf # Ini sepertinya hanya untuk placeholder, IP sebenarnya sudah diekspor
+    echo "IP=" >> /var/lib/kyt/ipvps.conf
     echo "$host1" > /etc/xray/domain
     echo "$host1" > /root/domain
     echo ""
 elif [[ "$host" == "2" ]]; then
     print_install "Installing Cloudflare Script"
-    # Pastikan script cf.sh di REPO berfungsi dengan baik di Ubuntu 24.04
     wget "${REPO}Data/cf.sh" -O /root/cf.sh && chmod +x /root/cf.sh && bash /root/cf.sh
     rm -f /root/cf.sh
     clear
 else
     print_install "Random Subdomain/Domain is Used"
-    # Logika untuk random domain harus ada di cf.sh atau di sini
-    # Jika cf.sh tidak menghasilkan domain, skrip akan gagal di pasang_ssl
-    # Asumsi cf.sh akan membuat /etc/xray/domain jika dipilih opsi ini
     clear
 fi
 }
 
-# --- GANTI PASSWORD DEFAULT (Placeholder function added) ---
+# --- GANTI PASSWORD DEFAULT (Placeholder function) ---
 function password_default() {
     print_install "Setting Default Passwords (Placeholder)"
-    # Implementasikan logika untuk mengatur password default di sini.
-    # Misalnya, untuk user SSH atau password API lainnya.
-    # PENTING: Jangan masukkan password sensitif langsung ke dalam skrip publik.
-    # Gunakan variabel lingkungan atau minta input dari pengguna.
     echo "Default password settings placeholder executed. Implement your password changes here."
     print_success "Default Passwords Set"
 }
 
-# --- Restart System & Telegram Notification (Cleaned and Adjusted for Robustness) ---
+# --- Restart System & Telegram Notification ---
 function restart_system(){
 #IZIN SCRIPT
 print_install "Sending Installation Notification & Setting Hostname"
-# Menggunakan curl --retry untuk ketahanan jaringan
 curl --retry 5 --retry-delay 5 "ipinfo.io/org?token=7a814b6263b02c" > /root/.isp || echo "Unknown ISP" > /root/.isp
 curl --retry 5 --retry-delay 5 "ipinfo.io/city?token=7a814b6263b02c" > /root/.city || echo "Unknown City" > /root/.city
 MYIP=$(curl -sS --max-time 10 ipv4.icanhazip.com || curl -sS --max-time 10 checkip.amazonaws.com || curl -sS --max-time 10 ifconfig.me)
@@ -307,7 +295,6 @@ MYIP=$(curl -sS --max-time 10 ipv4.icanhazip.com || curl -sS --max-time 10 check
 echo -e "\e[32mloading...\e[0m"
 clear
 
-# Pastikan URL izinsc masih valid dan isinya sesuai
 izinsc="https://github.com/hokagelegend9999/ijin/raw/refs/heads/main/gnome"
 
 # USERNAME
@@ -319,17 +306,17 @@ echo "$expx" >/usr/bin/e || echo "unknown_exp" > /usr/bin/e
 
 # DETAIL ORDER
 username=$(cat /usr/bin/user)
-oid=$(cat /usr/bin/ver 2>/dev/null || echo "N/A") # Tambahkan 2>/dev/null untuk menghindari error jika file tidak ada
+oid=$(cat /usr/bin/ver 2>/dev/null || echo "N/A")
 exp=$(cat /usr/bin/e)
 clear
 
 # Status Expired Active
 Info="(${green}Active${NC})"
 Error="(${RED}ExpiRED${NC})"
-today=$(date +"%Y-%m-%d") # Menggunakan date langsung
+today=$(date +"%Y-%m-%d")
 Exp1=$(curl -sS --max-time 10 "$izinsc" | grep "$MYIP" | awk '{print $4}')
-if [[ "$today" < "$Exp1" ]]; then # Baris ini dikoreksi dari span HTML
-    sts="${Info}"                 # Baris ini dikoreksi dari span HTML
+if [[ "$today" < "$Exp1" ]]; then
+    sts="${Info}"
 else
     sts="${Error}"
 fi
@@ -338,15 +325,15 @@ fi
 TIMES="10"
 CHATID="1469244768"
 KEY="7219522943:AAFZGZIbRU-CodrmgGJRuyXCV55sJDOSrSg" # PENTING: JANGAN BIARKAN API KEY TERBOCOR!
-URL="https://api.telegram.org/bot${KEY}/sendMessage" # URL harus di dalam kutip
+URL="https://api.telegram.org/bot${KEY}/sendMessage"
 ISP=$(cat /root/.isp)
-IP_NOTIF=$(curl -sS --max-time 10 ipv4.icanhazip.com) # Gunakan nama variabel berbeda agar tidak bentrok
+IP_NOTIF=$(curl -sS --max-time 10 ipv4.icanhazip.com)
 CITY=$(cat /root/.city)
-TIMEZONE=$(TZ='Asia/Jakarta' printf '%(%H:%M:%S)T') # Pastikan timezone benar
+TIMEZONE=$(TZ='Asia/Jakarta' printf '%(%H:%M:%S)T')
 
 TEXT="
 <code>────────────────────</code>
-<b>⚡𝗡𝗢𝗧𝗜𝗙 𝗜𝗡𝗦𝗧𝗔𝗟𝗟 𝗦𝗖𝗥𝗜𝗣𝗧⚡</b>
+<b>⚡𝗡𝗢𝗧𝗜𝗙 𝗜𝗡𝗦𝗧𝗔𝗟𝗟 𝗦𝗖𝗥�𝗣𝗧⚡</b>
 <code>────────────────────</code>
 <code>User      :</code><code>${username}</code>
 <code>ISP       :</code><code>${ISP}</code>
@@ -360,8 +347,6 @@ TEXT="
 <code>─────────────────────────────</code>
 <i>Automatic Notifications From Github</i>
 "
-# Menggunakan jq untuk membuat JSON payload yang lebih rapi dan aman
-# Memastikan jq terinstal di base_package
 JSON_PAYLOAD=$(jq -n \
     --arg chat_id "$CHATID" \
     --arg text "$TEXT" \
@@ -377,21 +362,20 @@ print_success "Telegram Notification Sent"
 }
 clear
 
-# --- Pasang SSL (Cleaned and Adjusted for Robustness) ---
+# --- Pasang SSL (Adjusted for Robustness) ---
 function pasang_ssl() {
 clear
 print_install "Memasang SSL Pada Domain"
 rm -rf /etc/xray/xray.key
 rm -rf /etc/xray/xray.crt
-domain=$(cat /etc/xray/domain 2>/dev/null || cat /root/domain 2>/dev/null) # Fallback if /etc/xray/domain not found
+domain=$(cat /etc/xray/domain 2>/dev/null || cat /root/domain 2>/dev/null)
     if [ -z "$domain" ]; then
 print_error "Domain not found. Skipping SSL installation."
-return 1 # Keluar dari fungsi dengan status error
+return 1
 fi
 
-# Menghentikan layanan web yang mungkin menggunakan port 80
-systemctl stop nginx.service || true # Gunakan .service secara konsisten
-# Cari proses lain yang menggunakan port 80 dan coba hentikan
+systemctl stop nginx.service || true
+systemctl stop apache2.service || true
 PIDS_ON_80=$(lsof -t -i:80 -sTCP:LISTEN)
     if [ -n "$PIDS_ON_80" ]; then
 echo -e "${YELLOW}Warning: Processes still listening on port 80: ${PIDS_ON_80}${NC}"
@@ -401,35 +385,32 @@ echo -e "${YELLOW}Warning: Processes still listening on port 80: ${PIDS_ON_80}${
     fi
 
     rm -rf /root/.acme.sh
-    mkdir -p /root/.acme.sh # Gunakan -p untuk memastikan direktori dibuat
+    mkdir -p /root/.acme.sh
     
-    # Download acme.sh dengan retry
-    curl --retry 5 --retry-delay 5 https://acme-install.netlify.app/acme.sh -o /root/.acme.sh/acme.sh
+    wget -O /root/.acme.sh/acme.sh --tries 5 --wait 5 https://acme-install.netlify.app/acme.sh
     if [ ! -f /root/.acme.sh/acme.sh ]; then
         print_error "Failed to download acme.sh. Skipping SSL installation."
         return 1
     fi
     chmod +x /root/.acme.sh/acme.sh
-    /root/.acme.sh/acme.sh --upgrade --auto-upgrade || true # Tambahkan || true
-    /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt || true # Tambahkan || true
+    /root/.acme.sh/acme.sh --upgrade --auto-upgrade || true
+    /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt || true
 
-    # Menjalankan acme.sh untuk issue sertifikat
     if ! /root/.acme.sh/acme.sh --issue -d "$domain" --standalone -k ec-256; then
         print_error "Failed to issue SSL certificate for $domain. Check DNS records and firewall."
-        systemctl start nginx.service || true # Coba jalankan kembali nginx jika gagal
+        systemctl start nginx.service || true
         return 1
     fi
 
-    # Menginstal sertifikat
     if ! ~/.acme.sh/acme.sh --installcert -d "$domain" --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc; then
         print_error "Failed to install SSL certificate."
         systemctl start nginx.service || true
         return 1
     fi
 
-    chmod 644 /etc/xray/xray.key # Permission yang lebih aman
+    chmod 644 /etc/xray/xray.key
     print_success "SSL Certificate"
-    systemctl start nginx.service || true # Mulai kembali nginx
+    systemctl start nginx.service || true
 }
 
 # --- Make Xray Folder (Adjusted permissions) ---
@@ -460,7 +441,7 @@ rm -rf /etc/vmess/.vmess.db
     mkdir -p /etc/limit/trojan
     mkdir -p /etc/limit/ssh
     mkdir -p /etc/user-create
-    chmod 755 /var/log/xray # Permission yang lebih tepat
+    chmod 755 /var/log/xray
     touch /etc/xray/domain
     touch /var/log/xray/access.log
     touch /var/log/xray/error.log
@@ -480,45 +461,241 @@ rm -rf /etc/vmess/.vmess.db
 
 # --- Install Xray (Cleaned and Adjusted) ---
 function install_xray() {
-clear
-    print_install "Core Xray Latest Version" # Mengambil versi terbaru secara dinamis
-    domainSock_dir="/run/xray";! [ -d "$domainSock_dir" ] && mkdir -p "$domainSock_dir" # Kutip variabel, tambah -p
-    chown www-data:www-data "$domainSock_dir" # Menggunakan grup juga
+    clear
+    print_install "Core Xray Latest Version"
 
-# Ambil Xray Core Version Terbaru
-latest_version=$(curl -sS --max-time 10 https://api.github.com/repos/XTLS/Xray-core/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)
+    domainSock_dir="/run/xray"
+    mkdir -p "$domainSock_dir" || print_error "Gagal membuat direktori domain socket Xray."
+    chown www-data:www-data "$domainSock_dir" || print_error "Gagal mengatur kepemilikan direktori domain socket Xray."
+
+    print_install "Memastikan Xray Core terinstal atau memperbarui..."
+    latest_version=$(curl -sS --max-time 10 https://api.github.com/repos/XTLS/Xray-core/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)
     if [ -z "$latest_version" ]; then
-print_error "Failed to get latest Xray version. Exiting."
-exit 1
-fi
-bash -c "$(curl -L -sS --max-time 10 https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install -u www-data --version "$latest_version"
-if [ ! -f /usr/local/bin/xray ]; then
-print_error "Xray core installation failed. Check internet connection or Github access."
-exit 1
-fi
-# Ambil Config Server
-wget -O /etc/xray/config.json "${REPO}Data/config.json" >/dev/null 2>&1 || print_error "Failed to download Xray config.json"
-    wget -O /etc/systemd/system/runn.service "${REPO}Data/runn.service" >/dev/null 2>&1 || print_error "Failed to download runn.service"
-# chmod +x /usr/local/bin/xray (sudah dilakukan oleh script install-release.sh)
-domain=$(cat /etc/xray/domain)
-    # IPVS=$(cat /etc/xray/ipvps) # Tidak terpakai dalam config.json di sini
+        print_error "Gagal mendapatkan versi Xray terbaru. Perbaikan mungkin tidak optimal."
+    fi
+    bash -c "$(curl -L -sS --max-time 10 https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install -u www-data --version "$latest_version"
+    if [ ! -f /usr/local/bin/xray ]; then
+        print_error "Instalasi Xray core gagal. Periksa koneksi internet atau akses GitHub."
+        exit 1
+    fi
+    print_success "Xray Core berhasil diinstal/diperbarui."
 
-    print_success "Core Xray ${latest_version} Latest Version"
-# Settings UP Nginx Server
-clear
-curl -sS --max-time 10 ipinfo.io/city >>/etc/xray/city || echo "Unknown City" >>/etc/xray/city
-curl -sS --max-time 10 ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp || echo "Unknown ISP" >>/etc/xray/isp
-print_install "Memasang Konfigurasi Packet"
-wget -O /etc/nginx/conf.d/xray.conf "${REPO}Data/xray.conf" >/dev/null 2>&1 || print_error "Failed to download nginx xray.conf"
-    sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
+    print_install "Mengunduh konfigurasi Xray ke /etc/xray/..."
+    wget -O /etc/xray/config.json --tries 5 --wait 5 "${REPO}Data/config.json" >/dev/null 2>&1 || print_error "Gagal mengunduh config.json Xray. Pastikan file ini ada di REPO."
+    wget -O /etc/systemd/system/runn.service --tries 5 --wait 5 "${REPO}Data/runn.service" >/dev/null 2>&1 || print_error "Gagal mengunduh runn.service."
+    domain=$(cat /etc/xray/domain 2>/dev/null)
+    if [ -z "$domain" ]; then
+        print_error "File domain tidak ditemukan di /etc/xray/domain. Konfigurasi Nginx mungkin tidak diperbarui dengan benar."
+    fi
+    
+    print_success "Konfigurasi Xray berhasil diunduh."
+
+    print_install "Memasang Konfigurasi Packet (Nginx)..."
+    curl -sS --max-time 10 ipinfo.io/city >>/etc/xray/city || echo "Unknown City" >>/etc/xray/city
+    curl -sS --max-time 10 ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp || echo "Unknown ISP" >>/etc/xray/isp
+    
+    # Menimpa file konfigurasi Nginx untuk Xray dengan yang sudah diperbaiki
+    cat >/etc/nginx/conf.d/xray.conf <<EOF
+# Server Block untuk HTTP (Port 80)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${domain}; # Menggunakan variabel domain
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location /vless {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /vmess {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /trojan-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /ss-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10004;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /ssh-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10015;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+# Server Block untuk HTTPS (Port 443)
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${domain}; # Menggunakan variabel domain
+
+    ssl_certificate /etc/xray/xray.crt;
+    ssl_certificate_key /etc/xray/xray.key;
+
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
+    ssl_prefer_server_ciphers on;
+
+    client_body_buffer_size 200K;
+    client_header_buffer_size 2k;
+    client_max_body_size 10M;
+    large_client_header_buffers 3 1k;
+    client_header_timeout 86400000m;
+    keepalive_timeout 86400000m;
+
+    location /vless {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /vmess {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /trojan-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /ss-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10004;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /ssh-ws {
+        if (\$http_upgrade != "websocket") { return 404; }
+        proxy_redirect off;
+        proxy_pass http://127.0.0.1:10015;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /vless-grpc {
+        grpc_pass grpc://127.0.0.1:10005;
+        grpc_set_header Host \$host;
+        grpc_set_header X-Real-IP \$remote_addr;
+        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /vmess-grpc {
+        grpc_pass grpc://127.0.0.1:10006;
+        grpc_set_header Host \$host;
+        grpc_set_header X-Real-IP \$remote_addr;
+        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /trojan-grpc {
+        grpc_pass grpc://127.0.0.1:10007;
+        grpc_set_header Host \$host;
+        grpc_set_header X-Real-IP \$remote_addr;
+        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location /ss-grpc {
+        grpc_pass grpc://127.0.0.1:10008;
+        grpc_set_header Host \$host;
+        grpc_set_header X-Real-IP \$remote_addr;
+        grpc_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+
+    location / {
+        return 404;
+    }
+EOF
 # Pastikan nginx.conf yang di-download kompatibel dengan Nginx versi Ubuntu 24.04
-sudo curl -fsSL "${REPO}Data/nginx.conf" -o /etc/nginx/nginx.conf || print_error "Failed to download nginx.conf"
+sudo curl -fsSL --tries 5 --wait 5 "${REPO}Data/nginx.conf" -o /etc/nginx/nginx.conf || print_error "Gagal mengunduh nginx.conf."
 
     # > Set Permission
     chmod +x /etc/systemd/system/runn.service
 
     # > Create Service
-    rm -f /etc/systemd/system/xray.service # Menggunakan rm -f untuk menghindari error jika file tidak ada
+    print_install "Membersihkan konfigurasi Systemd Xray yang mungkin bertentangan..."
+    rm -rf /etc/systemd/system/xray.service.d || true
+    rm -f /etc/systemd/system/xray.service
+
     cat >/etc/systemd/system/xray.service <<EOF
 Description=Xray Service
 Documentation=https://github.com
@@ -538,24 +715,21 @@ LimitNOFILE=1000000
 [Install]
 WantedBy=multi-user.target
 EOF
-print_success "Konfigurasi Packet"
+    print_success "Konfigurasi Packet dan Service Xray berhasil diperbarui."
 }
 
-# --- SSH Configuration (Cleaned and Adjusted) ---
+# --- SSH Configuration (Adjusted) ---
 function ssh(){
 clear
 print_install "Memasang Password SSH & Konfigurasi Sistem"
-    # Pastikan file common-password ini masih kompatibel dengan PAM di Ubuntu 24.04
-    wget -O /etc/pam.d/common-password "${REPO}Data/password" || print_error "Failed to download common-password config."
-chmod 644 /etc/pam.d/common-password # Permission yang lebih aman
+    wget -O /etc/pam.d/common-password --tries 5 --wait 5 "${REPO}Data/password" || print_error "Gagal mengunduh common-password config."
+chmod 644 /etc/pam.d/common-password
 
-# Keyboard configuration - ini biasanya dilakukan secara interaktif atau lewat cloud-init.
-# Untuk non-interactive, ini masih bisa jalan tapi kadang tidak efektif.
 DEBIAN_FRONTEND=noninteractive dpkg-reconfigure keyboard-configuration || true
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/altgr select The default for the keyboard layout" || true
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/compose select No compose key" || true
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/ctrl_alt_bksp boolean false" || true
-debconf-set-selections <<<"keyboard-configuration keyboard-configuration/layoutcode string us" # Ganti 'de' ke 'us' jika default keyboard English
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/layoutcode string us"
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/layout select English" || true
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/modelcode string pc105" || true
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/model select Generic 105-key (Intl) PC" || true
@@ -568,11 +742,9 @@ debconf-set-selections <<<"keyboard-configuration keyboard-configuration/unsuppo
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/unsupported_layout boolean true" || true
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/unsupported_options boolean true" || true
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/variantcode string " || true
-debconf-set-selections <<<"keyboard-configuration keyboard-configuration/variant select English (US)" # Lebih spesifik
-# go to root
-cd /root || exit # Pindah ke root, keluar jika gagal
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/variant select English (US)" || true
+cd /root || exit
 
-# Edit file /etc/systemd/system/rc-local.service (No change needed)
 cat > /etc/systemd/system/rc-local.service <<-EOF
 [Unit]
 Description=/etc/rc.local
@@ -588,7 +760,6 @@ SysVStartPriority=99
 WantedBy=multi-user.target
 EOF
 
-# nano /etc/rc.local (No change needed)
 cat > /etc/rc.local <<-EOF
 #!/bin/sh -e
 # rc.local
@@ -596,38 +767,33 @@ cat > /etc/rc.local <<-EOF
 exit 0
 EOF
 
-# Ubah izin akses
 chmod +x /etc/rc.local
 
-# enable rc local
-systemctl enable rc-local.service || true # Gunakan .service secara konsisten
-systemctl start rc-local.service || true # Gunakan .service secara konsisten
+systemctl enable rc-local.service || true
+systemctl start rc-local.service || true
 
-# disable ipv6 (No change needed)
 echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 sed -i '$ i\echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6' /etc/rc.local
 
-# set time GMT +7 (No change needed)
 ln -fs /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
 
-# set locale (No change needed)
 sed -i 's/AcceptEnv/#AcceptEnv/g' /etc/ssh/sshd_config
 print_success "Password SSH & Konfigurasi Sistem"
 }
 
-# --- UDP Mini (Cleaned and Adjusted for robustness) ---
+# --- UDP Mini (Adjusted for robustness) ---
 function udp_mini(){
 clear
 print_install "Memasang Service Limit IP & Quota"
-wget -q https://raw.githubusercontent.com/hokagelegend9999/alpha.v2/refs/heads/main/config/fv-tunnel && chmod +x fv-tunnel && ./fv-tunnel
+wget -O /tmp/fv-tunnel --tries 5 --wait 5 "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/Data/fv-tunnel" && chmod +x /tmp/fv-tunnel && /tmp/fv-tunnel || print_error "Gagal menginstal fv-tunnel."
+rm -f /tmp/fv-tunnel || true
 
-# Installing UDP Mini
 mkdir -p /usr/local/kyt/
-wget -q -O /usr/local/kyt/udp-mini "${REPO}Data/udp-mini" || print_error "Failed to download udp-mini"
+wget -O /usr/local/kyt/udp-mini --tries 5 --wait 5 "${REPO}Data/udp-mini" || print_error "Gagal mengunduh udp-mini."
 chmod +x /usr/local/kyt/udp-mini
-wget -q -O /etc/systemd/system/udp-mini-1.service "${REPO}Data/udp-mini-1.service" || print_error "Failed to download udp-mini-1.service"
-wget -q -O /etc/systemd/system/udp-mini-2.service "${REPO}Data/udp-mini-2.service" || print_error "Failed to download udp-mini-2.service"
-wget -q -O /etc/systemd/system/udp-mini-3.service "${REPO}Data/udp-mini-3.service" || print_error "Failed to download udp-mini-3.service"
+wget -O /etc/systemd/system/udp-mini-1.service --tries 5 --wait 5 "${REPO}Data/udp-mini-1.service" || print_error "Gagal mengunduh udp-mini-1.service."
+wget -O /etc/systemd/system/udp-mini-2.service --tries 5 --wait 5 "${REPO}Data/udp-mini-2.service" || print_error "Gagal mengunduh udp-mini-2.service."
+wget -O /etc/systemd/system/udp-mini-3.service --tries 5 --wait 5 "${REPO}Data/udp-mini-3.service" || print_error "Gagal mengunduh udp-mini-3.service."
 
 systemctl disable udp-mini-1.service || true
 systemctl stop udp-mini-1.service || true
@@ -651,9 +817,9 @@ print_success "Limit IP Service"
 function ssh_slow(){
 clear
 print_install "Memasang modul SlowDNS Server"
-    wget -q -O /tmp/nameserver "${REPO}Data/nameserver" >/dev/null 2>&1 || print_error "Failed to download nameserver script."
+    wget -O /tmp/nameserver --tries 5 --wait 5 "${REPO}Data/nameserver" >/dev/null 2>&1 || print_error "Gagal mengunduh skrip nameserver."
 chmod +x /tmp/nameserver
-bash /tmp/nameserver | tee /root/install.log # Log output to file
+bash /tmp/nameserver | tee /root/install.log
 print_success "SlowDNS"
 }
 clear
@@ -662,31 +828,47 @@ clear
 function ins_SSHD(){
 clear
 print_install "Memasang SSHD"
-wget -q -O /etc/ssh/sshd_config "${REPO}Datas/sshd" >/dev/null 2>&1
-chmod 700 /etc/ssh/sshd_config
-/etc/init.d/ssh restart
-systemctl restart ssh
-/etc/init.d/ssh status
+wget -O /etc/ssh/sshd_config --tries 5 --wait 5 "${REPO}Data/sshd" >/dev/null 2>&1 || print_error "Gagal mengunduh konfigurasi sshd."
+chmod 644 /etc/ssh/sshd_config
+systemctl restart sshd.service || /etc/init.d/ssh restart || true
+systemctl status sshd.service || /etc/init.d/ssh status || true
 print_success "SSHD"
 }
+
 clear
 # --- Install Dropbear (Adjusted for systemctl preference and config) ---
 function ins_dropbear(){
 clear
-print_install "Menginstall Dropbear"
-# // Installing Dropbear
-apt-get install dropbear -y > /dev/null 2>&1
-wget -q -O /etc/default/dropbear https://github.com/hokagelegend9999/genom/raw/refs/heads/main/Data/dropbear.conf
-chmod +x /etc/default/dropbear
-/etc/init.d/dropbear restart
-/etc/init.d/dropbear status
-print_success "Dropbear"
+print_install "Menginstal ulang Dropbear untuk memperbaiki unit file"
+
+apt install --reinstall dropbear -y > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    print_error "Gagal menginstal ulang paket Dropbear. Instalasi mungkin tidak berfungsi."
+    return 1
+fi
+
+systemctl daemon-reload || true
+
+wget -O /etc/default/dropbear --tries 5 --wait 5 "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/dropbear.conf" || print_error "Gagal mengunduh konfigurasi Dropbear."
+chmod 644 /etc/default/dropbear
+
+systemctl restart dropbear.service || /etc/init.d/dropbear restart || true
+systemctl status dropbear.service || /etc/init.d/dropbear status || true
+
+if systemctl is-active --quiet dropbear.service; then
+    print_success "Dropbear berhasil dipasang dan berjalan."
+else
+    print_error "Dropbear gagal memulai. Periksa log sistem dengan 'journalctl -xeu dropbear.service' untuk detail."
+    systemctl status dropbear.service --no-pager
+    return 1
+fi
 }
+
 # --- Install UDP Custom (No significant changes needed, ensure udp-custom.sh is compatible) ---
 function ins_udpSSH(){
 clear
-print_install "Menginstall Udp-custom"
-wget -q "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/udp-custom/udp-custom.sh" -O /tmp/udp-custom.sh || print_error "Failed to download udp-custom script."
+print_install "Menginstal Udp-custom"
+wget -O /tmp/udp-custom.sh --tries 5 --wait 5 "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/udp-custom/udp-custom.sh" || print_error "Gagal mengunduh skrip udp-custom."
 chmod +x /tmp/udp-custom.sh
 bash /tmp/udp-custom.sh
 rm -fr /tmp/udp-custom.sh
@@ -697,43 +879,53 @@ clear
 # --- Install Vnstat (Adjusted for modern Vnstat usage) ---
 function ins_vnstat(){
 clear
-print_install "Menginstall Vnstat"
-# setting vnstat
-apt -y install vnstat > /dev/null 2>&1
-/etc/init.d/vnstat restart
-apt -y install libsqlite3-dev > /dev/null 2>&1
-wget https://humdi.net/vnstat/vnstat-2.6.tar.gz
-tar zxvf vnstat-2.6.tar.gz
-cd vnstat-2.6
-./configure --prefix=/usr --sysconfdir=/etc && make && make install
-cd
-vnstat -u -i $NET
-sed -i 's/Interface "'""eth0""'"/Interface "'""$NET""'"/g' /etc/vnstat.conf
-chown vnstat:vnstat /var/lib/vnstat -R
-systemctl enable vnstat
-/etc/init.d/vnstat restart
-/etc/init.d/vnstat status
-rm -f /root/vnstat-2.6.tar.gz
-rm -rf /root/vnstat-2.6
+print_install "Menginstal Vnstat"
+apt -y install vnstat > /dev/null 2>&1 || print_error "Gagal menginstal vnstat."
+systemctl restart vnstat.service || /etc/init.d/vnstat restart || true
+apt -y install libsqlite3-dev > /dev/null 2>&1 || print_error "Gagal menginstal libsqlite3-dev."
+
+NET=$(ip -o -4 route show to default | awk '{print $5}' | head -n 1)
+if [ -z "$NET" ]; then
+    print_error "Tidak dapat mendeteksi antarmuka jaringan utama. Vnstat mungkin tidak berfungsi dengan benar."
+    NET="eth0"
+fi
+
+vnstat -u -i "$NET" || true
+sed -i "s/Interface \"\"eth0\"\"/Interface \"\"${NET}\"\"/g" /etc/vnstat.conf || true
+chown vnstat:vnstat /var/lib/vnstat -R || true
+systemctl enable vnstat.service || true
+systemctl restart vnstat.service || true
+systemctl status vnstat.service || true
+rm -f /root/vnstat-2.6.tar.gz 2>/dev/null || true
+rm -rf /root/vnstat-2.6 2>/dev/null || true
 print_success "Vnstat"
 }
-# --- Install Backup (Cleaned and Adjusted) ---
+
+# --- Install Backup (Adjusted) ---
 function ins_backup(){
 clear
 print_install "Memasang Backup Server"
-#BackupOption
-apt install rclone -y
-printf "q\n" | rclone config
-wget -O /root/.config/rclone/rclone.conf "${REPO}config/rclone.conf"
-#Install Wondershaper
-cd /bin
-git clone  https://github.com/magnific0/wondershaper.git
-cd wondershaper
-sudo make install
-cd
-rm -rf wondershaper
+apt install rclone -y || print_error "Gagal menginstal rclone."
+printf "n\n" | rclone config
+
+wget -O /root/.config/rclone/rclone.conf --tries 5 --wait 5 "${REPO}Data/rclone.conf"
+if [ $? -ne 0 ]; then
+    print_error "Gagal mengunduh konfigurasi Rclone. File 'rclone.conf' mungkin tidak ada di repositori atau masalah jaringan."
+    print_error "Anda perlu mengonfigurasi Rclone secara manual setelah instalasi jika ini penting untuk Anda."
+else
+    chmod 600 /root/.config/rclone/rclone.conf
+    print_success "Konfigurasi Rclone berhasil diunduh."
+fi
+
+wget -O /usr/local/sbin/wondershaper --tries 5 --wait 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper || print_error "Gagal mengunduh skrip wondershaper."
+chmod +x /usr/local/sbin/wondershaper
+wget -O /etc/wondershaper.conf --tries 5 --wait 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper.conf || print_error "Gagal mengunduh konfigurasi wondershaper."
+chmod 644 /etc/wondershaper.conf || true
+
 echo > /home/limit
-apt install msmtp-mta ca-certificates bsd-mailx -y
+apt install msmtp-mta ca-certificates bsd-mailx -y || print_error "Gagal menginstal dependensi msmtp."
+
+# !!! PERINGATAN KEAMANAN KRITIS !!! Password Gmail terekspos.
 cat<<EOF>>/etc/msmtprc
 defaults
 tls on
@@ -746,156 +938,166 @@ port 587
 auth on
 user oceantestdigital@gmail.com
 from oceantestdigital@gmail.com
-password jokerman77 
+password jokerman77
 logfile ~/.msmtp.log
 EOF
-chown -R www-data:www-data /etc/msmtprc
-wget -q -O /etc/ipserver "${REPO}files/ipserver" && bash /etc/ipserver
+chown -R root:root /etc/msmtprc
+chmod 600 /etc/msmtprc
+
+wget -O /etc/ipserver --tries 5 --wait 5 "${REPO}Data/ipserver" && bash /etc/ipserver || print_error "Gagal menginstal skrip ipserver."
 print_success "Backup Server"
 }
 
-# --- Install Swap (Cleaned and Adjusted) ---
+# --- Install Swap (Adjusted) ---
 function ins_swab(){
 clear
 print_install "Memasang Swap 1 G"
 gotop_latest=$(curl -sS --max-time 10 https://api.github.com/repos/xxxserxxx/gotop/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)
 gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v${gotop_latest}/gotop_v${gotop_latest}_linux_amd64.deb"
     
-    # Download gotop
     if ! curl -sL --max-time 10 "$gotop_link" -o /tmp/gotop.deb; then
-print_error "Failed to download gotop. Continuing without it."
+print_error "Gagal mengunduh gotop. Melanjutkan tanpa itu."
 else
-dpkg -i /tmp/gotop.deb >/dev/null 2>&1 || print_error "Failed to install gotop deb package."
+dpkg -i /tmp/gotop.deb >/dev/null 2>&1 || print_error "Gagal menginstal paket deb gotop."
 rm -f /tmp/gotop.deb || true
 fi
 
-# > Buat swap sebesar 1G
-dd if=/dev/zero of=/swapfile bs=1M count=1024 || print_error "Failed to create swapfile." # Menggunakan bs=1M lebih cepat
-mkswap /swapfile || print_error "Failed to format swapfile."
-chown root:root /swapfile || print_error "Failed to set swapfile ownership."
-chmod 0600 /swapfile >/dev/null 2>&1 || print_error "Failed to set swapfile permissions."
-swapon /swapfile >/dev/null 2>&1 || print_error "Failed to enable swapfile."
-sed -i '$ i\/swapfile               swap               swap    defaults        0 0' /etc/fstab || print_error "Failed to add swap to fstab."
+dd if=/dev/zero of=/swapfile bs=1M count=1024 || print_error "Gagal membuat swapfile."
+mkswap /swapfile || print_error "Gagal memformat swapfile."
+chown root:root /swapfile || print_error "Gagal mengatur kepemilikan swapfile."
+chmod 0600 /swapfile >/dev/null 2>&1 || print_error "Gagal mengatur izin swapfile."
+swapon /swapfile >/dev/null 2>&1 || print_error "Gagal mengaktifkan swapfile."
+sed -i '$ i\/swapfile               swap               swap    defaults        0 0' /etc/fstab || print_error "Gagal menambahkan swap ke fstab."
 
-    # > Singkronisasi jam (chrony sudah diatur sebelumnya)
-    chronyd -q 'server 0.id.pool.ntp.org iburst' || true # Menggunakan server NTP Indonesia
-    chronyc sourcestats -v || true
-    chronyc tracking -v || true
+chronyd -q 'server 0.id.pool.ntp.org iburst' || true
+chronyc sourcestats -v || true
+chronyc tracking -v || true
     
-    # Install BBR
-    wget -q --retry 5 --retry-delay 5 "${REPO}Data/bbr.sh" -O /tmp/bbr.sh && chmod +x /tmp/bbr.sh && /tmp/bbr.sh || print_error "Failed to install BBR."
-rm -f /tmp/bbr.sh || true # Hapus script bbr setelah dijalankan
+    wget -O /tmp/bbr.sh --tries 5 --wait 5 "${REPO}Data/bbr.sh" && chmod +x /tmp/bbr.sh && /tmp/bbr.sh || print_error "Gagal menginstal BBR."
+rm -f /tmp/bbr.sh || true
 print_success "Swap 1 G & BBR"
 }
 
 # --- Install Fail2ban & DDOS Flate (Adjusted) ---
 function ins_Fail2ban(){
 clear
-print_install "Menginstall Fail2ban"
-# Menginstal fail2ban jika belum
-apt -y install fail2ban > /dev/null 2>&1 || print_error "Failed to install fail2ban."
+print_install "Menginstal Fail2ban"
+apt -y install fail2ban > /dev/null 2>&1 || print_error "Gagal menginstal fail2ban."
 systemctl enable --now fail2ban.service || true
 systemctl restart fail2ban.service || true
 systemctl status fail2ban.service | grep Active || true
 
-# Instal DDOS Flate
 if [ -d '/usr/local/ddos' ]; then
-    echo "DDOS Flate already installed. Skipping."
+    echo "DDOS Flate sudah terinstal. Melewati."
 else
-    mkdir -p /usr/local/ddos # Gunakan -p
-    # Anda perlu menyediakan cara untuk menginstal DDOS Flate di sini,
-    # misalnya dengan mengunduh script atau file instalasinya.
-    # Contoh placeholder:
-    # wget -q -O /usr/local/ddos/ddos.sh "${REPO}Data/ddos.sh"
-    # chmod +x /usr/local/ddos/ddos.sh
-    # bash /usr/local/ddos/ddos.sh install
+    mkdir -p /usr/local/ddos
     echo "Placeholder for DDOS Flate installation. Please add actual installation steps."
 fi
 
 clear
-# banner
 echo "Banner /etc/kyt.txt" >>/etc/ssh/sshd_config
 sed -i 's@DROPBEAR_BANNER=""@DROPBEAR_BANNER="/etc/kyt.txt"@g' /etc/default/dropbear
 
-# Ganti Banner
-wget -O /etc/kyt.txt "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/issue.net" || print_error "Failed to download banner file."
+wget -O /etc/kyt.txt --tries 5 --wait 5 "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/issue.net" || print_error "Gagal mengunduh file banner."
 print_success "Fail2ban & DDOS Flate"
 }
 
 # --- Install ePro WebSocket Proxy (Cleaned and Adjusted) ---
 function ins_epro(){
 clear
-print_install "Menginstall ePro WebSocket Proxy"
-    wget -O /usr/bin/ws "${REPO}files/ws" >/dev/null 2>&1
-    wget -O /usr/bin/tun.conf "${REPO}Data/tun.conf" >/dev/null 2>&1
-    wget -O /etc/systemd/system/ws.service "${REPO}Data/ws.service" >/dev/null 2>&1
-    chmod +x /etc/systemd/system/ws.service
+print_install "Menginstal ePro WebSocket Proxy"
+
+    print_install "Menghentikan layanan ws.service untuk memungkinkan pembaruan binary..."
+    systemctl stop ws.service || true
+    sleep 2
+
+    print_install "Mengunduh binary ws ke /usr/bin/ws..."
+    wget -O /usr/bin/ws --tries 5 --wait 5 "${REPO}Data/ws"
+    if [ $? -ne 0 ]; then
+        print_error "Gagal mengunduh binary /usr/bin/ws. Periksa URL dan koneksi internet."
+        return 1
+    fi
+
     chmod +x /usr/bin/ws
+    if [ ! -x /usr/bin/ws ]; then
+        print_error "Gagal memberikan izin eksekusi untuk /usr/bin/ws."
+        return 1
+    fi
+
+    file_type=$(file -b /usr/bin/ws)
+    if [[ "$file_type" != *"executable"* && "$file_type" != *"script"* ]]; then
+        print_error "File /usr/bin/ws yang diunduh bukan executable atau skrip. Ini adalah: $file_type"
+        print_error "Kemungkinan download gagal dan mengunduh halaman HTML. Hapus /usr/bin/ws dan coba lagi."
+        return 1
+    fi
+    if [[ "$file_type" == *"ELF"* && "$file_type" != *"x86-64"* ]]; then
+        print_error "Binary /usr/bin/ws bukan untuk arsitektur x86-64. Ini adalah: $file_type"
+        return 1
+    fi
+    print_success "Binary /usr/bin/ws berhasil diunduh dan diverifikasi."
+
+
+    wget -O /usr/bin/tun.conf --tries 5 --wait 5 "${REPO}Data/tun.conf" >/dev/null 2>&1 || print_error "Gagal mengunduh tun.conf."
+    wget -O /etc/systemd/system/ws.service --tries 5 --wait 5 "${REPO}Data/ws.service" >/dev/null 2>&1 || print_error "Gagal mengunduh ws.service unit file."
+    
+    chmod 644 /etc/systemd/system/ws.service
     chmod 644 /usr/bin/tun.conf
-systemctl disable ws
-systemctl stop ws
-systemctl enable ws
-systemctl start ws
-systemctl restart ws
-wget -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" >/dev/null 2>&1
-wget -q -O /usr/local/share/xray/geoip.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" >/dev/null 2>&1
-wget -O /usr/sbin/ftvpn "${REPO}files/ftvpn" >/dev/null 2>&1
-chmod +x /usr/sbin/ftvpn
-iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP
-iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP
-iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP
-iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP
-iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP
-iptables -A FORWARD -m string --algo bm --string "peer_id=" -j DROP
-iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP
-iptables -A FORWARD -m string --algo bm --string "announce.php?passkey=" -j DROP
-iptables -A FORWARD -m string --algo bm --string "torrent" -j DROP
-iptables -A FORWARD -m string --algo bm --string "announce" -j DROP
-iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP
-iptables-save > /etc/iptables.up.rules
-iptables-restore -t < /etc/iptables.up.rules
-netfilter-persistent save
-netfilter-persistent reload
-# Mengunduh geosite.dat dan geoip.dat
-# Pastikan ini adalah link terbaru dan valid
-wget -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" >/dev/null 2>&1 || print_error "Failed to download geosite.dat."
-wget -q -O /usr/local/share/xray/geoip.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" >/dev/null 2>&1 || print_error "Failed to download geoip.dat."
 
-wget -O /usr/sbin/ftvpn "${REPO}Data/ftvpn" >/dev/null 2>&1 || print_error "Failed to download ftvpn."
-chmod +x /usr/sbin/ftvpn
+    systemctl daemon-reload || true
 
-# Aturan IPtables untuk memblokir torrent (tetap dipertahankan, tapi catat batasan)
-iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP || true
-iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP || true
-iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP || true
-iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP || true
-iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP || true
-iptables -A FORWARD -m string --algo bm --string "peer_id=" -j DROP || true
-iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP || true
-iptables -A FORWARD -m string --algo bm --string "announce.php?passkey=" -j DROP || true
-iptables -A FORWARD -m string --algo bm --string "torrent" -j DROP || true
-iptables -A FORWARD -m string --algo bm --string "announce" -j DROP || true
-iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP || true
+    systemctl disable ws.service || true
+    systemctl stop ws.service || true
+    systemctl enable ws.service || true
+    systemctl start ws.service || true
+    systemctl restart ws.service || true
 
-iptables-save > /etc/iptables.up.rules || true
-iptables-restore -t < /etc/iptables.up.rules || true
-netfilter-persistent save || true
-netfilter-persistent reload || true
+    if systemctl is-active --quiet ws.service; then
+        print_success "ePro WebSocket Proxy berhasil dipasang dan berjalan."
+    else
+        print_error "ePro WebSocket Proxy gagal memulai. Cek log dengan 'journalctl -xeu ws.service' untuk detail."
+        systemctl status ws.service --no-pager
+        return 1
+    fi
 
-# remove unnecessary files
-cd /root || exit # Pastikan di direktori root sebelum autoclean/autoremove
-apt autoclean -y >/dev/null 2>&1 || true
-apt autoremove -y >/dev/null 2>&1 || true
-print_success "ePro WebSocket Proxy"
+    wget -q -O /usr/local/share/xray/geosite.dat --tries 5 --wait 5 "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" >/dev/null 2>&1 || print_error "Gagal mengunduh geosite.dat."
+    wget -q -O /usr/local/share/xray/geoip.dat --tries 5 --wait 5 "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" >/dev/null 2>&1 || print_error "Gagal mengunduh geoip.dat."
+
+    wget -O /usr/sbin/ftvpn --tries 5 --wait 5 "${REPO}Data/ftvpn" >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        print_error "Gagal mengunduh ftvpn. File ini mungkin tidak ada di repositori atau masalah jaringan. Melanjutkan instalasi."
+    else
+        chmod +x /usr/sbin/ftvpn
+        print_success "ftvpn berhasil diunduh dan dipasang."
+    fi
+
+    iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP || true
+    iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP || true
+    iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string "peer_id=" -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string "announce.php?passkey=" -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string "torrent" -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string "announce" -j DROP || true
+    iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP || true
+
+    iptables-save > /etc/iptables.up.rules || true
+    iptables-restore -t < /etc/iptables.up.rules || true
+    netfilter-persistent save || true
+    netfilter-persistent reload || true
+
+    apt autoclean -y >/dev/null 2>&1 || true
+    apt autoremove -y >/dev/null 2>&1 || true
+    print_success "Konfigurasi ePro WebSocket Proxy selesai."
 }
 
 # --- Restart Services (Adjusted) ---
 function ins_restart(){
 clear
 print_install "Restarting All Services"
-# Menggunakan systemctl untuk semua layanan
 systemctl restart nginx.service || /etc/init.d/nginx restart || true
-systemctl restart sshd.service || /etc/init.d/ssh restart || true # Menggunakan sshd
+systemctl restart sshd.service || /etc/init.d/ssh restart || true
 systemctl restart dropbear.service || /etc/init.d/dropbear restart || true
 systemctl restart fail2ban.service || /etc/init.d/fail2ban restart || true
 systemctl restart vnstat.service || /etc/init.d/vnstat restart || true
@@ -913,37 +1115,36 @@ systemctl enable --now fail2ban.service || true
 history -c
 echo "unset HISTFILE" >> /etc/profile
 
-cd /root || exit # Pastikan di direktori root sebelum menghapus file
-rm -f /root/openvpn || true # Jika ini adalah file yang perlu dihapus setelah instalasi
-rm -f /root/key.pem || true # Jika ini adalah file yang perlu dihapus setelah instalasi
-rm -f /root/cert.pem || true # Jika ini adalah file yang perlu dihapus setelah instalasi
+cd /root || exit
+rm -f /root/openvpn || true
+rm -f /root/key.pem || true
+rm -f /root/cert.pem || true
 print_success "All Services"
 }
 
 # --- Install Menu (No changes needed, assuming menu.zip structure is consistent) ---
-#Instal Menu
 function menu(){
     clear
     print_install "Memasang Menu Packet"
-    wget ${REPO}Menu/menu.zip
-    wget ${REPO}Menu/menu
-    unzip menu.zip
-    chmod +x menu/*
-    mv menu/* /usr/local/sbin
-    rm -rf menu
-    rm -rf menu.zip
-    wget ${REPO}Menu/menu
-    mv menu /usr/local/sbin
-    chmod +x menu
-
+    wget "${REPO}Menu/menu.zip" -O /tmp/menu.zip || print_error "Gagal mengunduh menu.zip."
+    if [ ! -f /tmp/menu.zip ]; then
+        print_error "Gagal mengunduh menu.zip. Menu tidak akan diinstal."
+        return 1
+    fi
+    unzip -o /tmp/menu.zip -d /tmp/menu_temp || print_error "Gagal mengekstrak menu.zip."
+    chmod +x /tmp/menu_temp/*
+    mv /tmp/menu_temp/* /usr/local/sbin/ || print_error "Gagal memindahkan file menu."
+    rm -rf /tmp/menu_temp || true
+    rm -f /tmp/menu.zip || true
+    print_success "Menu Packet"
 }
 
-# Membaut Default Menu 
+# --- Create Default Profile & Cron Jobs (Adjusted) ---
 function profile(){
 clear
     cat >/root/.profile <<EOF
 # ~/.profile: executed by Bourne-compatible login shells.
-if [ "$BASH" ]; then
+if [ "\$BASH" ]; then
     if [ -f ~/.bashrc ]; then
         . ~/.bashrc
     fi
@@ -951,25 +1152,20 @@ fi
 mesg n || true
 menu
 EOF
-# --- Create Default Profile & Cron Jobs (Cleaned and Adjusted) ---
-
 mkdir -p /root/.info
 curl -sS "ipinfo.io/org?token=7a814b6263b02c" > /root/.info/.isp || true
-curl -sS "ipinfo.io/city?token=7a814b6263b02c" > /root/.info/.city || true # Pindahkan ini ke sini juga
-# Cron jobs
-# Pastikan semua script yang dipanggil di cron job ada dan executable di /usr/local/sbin
+curl -sS "ipinfo.io/city?token=7a814b6263b02c" > /root/.info/.city || true
 cat >/etc/cron.d/xp_all <<-EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 2 0 * * * root /usr/local/sbin/xp
-# 2 0 * * * root /usr/local/sbin/menu # Apakah ini perlu diulang setiap hari? Mungkin tidak.
 EOF
 cat >/etc/cron.d/logclean <<-EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */20 * * * * root /usr/local/sbin/clearlog
 EOF
-chmod 644 /root/.profile # Permission yang lebih aman
+chmod 644 /root/.profile
 cat >/etc/cron.d/daily_reboot <<-EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -988,30 +1184,27 @@ EOF
 cat >/etc/cron.d/limit_ip2 <<-EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-*/2 * * * * root /usr/bin/limit-ip # Duplikat dari limit_ip? Periksa.
+*/2 * * * * root /usr/bin/limit-ip
 EOF
 echo "*/1 * * * * root echo -n > /var/log/nginx/access.log" >/etc/cron.d/log.nginx
 echo "*/1 * * * * root echo -n > /var/log/xray/access.log" >>/etc/cron.d/log.xray
-service cron restart || true # Pastikan ini berhasil
+service cron restart || true
 cat >/home/daily_reboot <<-EOF
 5
 EOF
-# rc-local.service sudah didefinisikan di fungsi ssh(), ini duplikasi.
 echo "/bin/false" >>/etc/shells
 echo "/usr/sbin/nologin" >>/etc/shells
-# rc.local file
 cat >/etc/rc.local <<EOF
 #!/bin/sh -e
 # rc.local
 # By default this script does nothing.
 iptables -I INPUT -p udp --dport 5300 -j ACCEPT
 iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300
-systemctl restart netfilter-persistent.service || true # Ini akan dijalankan setiap boot.
+systemctl restart netfilter-persistent.service || true
 exit 0
 EOF
 chmod +x /etc/rc.local
     
-# AUTOREB logic (No changes needed)
 AUTOREB=$(cat /home/daily_reboot)
     SETT=11
     if [ "$AUTOREB" -gt "$SETT" ]; then
@@ -1051,7 +1244,7 @@ clear
     base_package
     make_folder_xray
     pasang_domain
-    password_default # Pastikan fungsi ini didefinisikan
+    password_default
     pasang_ssl
     install_xray
     ssh
@@ -1069,7 +1262,7 @@ clear
     menu
     profile
     enable_services
-    restart_system # Memanggil restart_system di akhir
+    restart_system
 }
 
 # --- Execute Installation ---
@@ -1077,19 +1270,17 @@ instal
 
 echo ""
 history -c
-rm -f /root/menu || true # Sudah dihapus di fungsi menu
-rm -f /root/*.zip || true # Menghapus semua file zip
-rm -f /root/*.sh || true # Menghapus semua file .sh
+rm -f /root/menu || true
+rm -f /root/*.zip || true
+rm -f /root/*.sh || true
 rm -f /root/LICENSE 2>/dev/null || true
 rm -f /root/README.md 2>/dev/null || true
-rm -f /root/domain || true # Sudah dihapus di fungsi pasang_domain
+rm -f /root/domain || true
 
-# Set hostname
-# username didapatkan dari izinsc, pastikan sudah terdefinisi
 if [ -n "$username" ]; then
-    sudo hostnamectl set-hostname "$username" || print_error "Failed to set hostname."
+    sudo hostnamectl set-hostname "$username" || print_error "Gagal mengatur hostname."
 else
-    print_error "Username not defined, skipping hostname change."
+    print_error "Username tidak terdefinisi, melewati perubahan hostname."
 fi
 secs_to_human "$(($(date +%s) - ${start}))"
 
