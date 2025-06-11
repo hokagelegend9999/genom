@@ -235,7 +235,6 @@ function base_package() {
         python3 htop lsof tar wget curl ruby zip unzip p7zip-full python3-pip libc6 util-linux msmtp-mta \
         ca-certificates bsd-mailx iptables iptables-persistent netfilter-persistent net-tools openssl gnupg \
         gnupg2 lsb-release gcc shc make cmake git screen socat xz-utils apt-transport-https dnsutils \
-        cron jq openvpn easy-rsa haproxy # Tambahkan haproxy jika belum ada
 
     print_success "Packet Yang Dibutuhkan"
 }
@@ -383,7 +382,6 @@ fi
 
 # Menghentikan layanan web yang mungkin menggunakan port 80
 systemctl stop nginx.service || true # Gunakan .service secara konsisten
-systemctl stop apache2.service || true # Tambahkan apache2 jika memungkinkan
 # Cari proses lain yang menggunakan port 80 dan coba hentikan
 PIDS_ON_80=$(lsof -t -i:80 -sTCP:LISTEN)
     if [ -n "$PIDS_ON_80" ]; then
@@ -669,33 +667,14 @@ clear
 function ins_dropbear(){
 clear
 print_install "Menginstall Dropbear"
-apt-get install dropbear -y > /dev/null 2>&1 || print_error "Failed to install dropbear."
-
-# Unduh konfigurasi dropbear.conf
-wget -q -O /etc/default/dropbear "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/dropbear.conf" || print_error "Failed to download dropbear config."
-chmod 644 /etc/default/dropbear # Permission yang lebih aman
-
-# Penting: Konfigurasi port Dropbear.
-# Jika port 22 sudah dipakai OpenSSH, Dropbear harus di port lain.
-# Dropbear config dari repo Anda: https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/dropbear.conf
-# File tersebut biasanya berisi:
-# DROPBEAR_PORT=109
-# DROPBEAR_EXTRA_ARGS="-p 143"
-# Ini berarti Dropbear akan mencoba mendengarkan di port 109 dan 143. Pastikan tidak bentrok.
-# Jika ada masalah, cek DROPBEAR_PORT dan DROPBEAR_EXTRA_ARGS di file tersebut.
-
-systemctl restart dropbear.service || /etc/init.d/dropbear restart || true # Menggunakan systemctl lebih dulu
-systemctl status dropbear.service || /etc/init.d/dropbear status || true # Menggunakan systemctl lebih dulu
-
-# Periksa status Dropbear setelah restart
-if systemctl is-active --quiet dropbear.service; then
-    print_success "Dropbear"
-else
-    print_error "Dropbear failed to start. Check /etc/default/dropbear and ensure ports 109/143 are free."
-    systemctl status dropbear.service --no-pager
-fi
+# // Installing Dropbear
+apt-get install dropbear -y > /dev/null 2>&1
+wget -q -O /etc/default/dropbear https://github.com/hokagelegend9999/genom/raw/refs/heads/main/Data/dropbear.conf
+chmod +x /etc/default/dropbear
+/etc/init.d/dropbear restart
+/etc/init.d/dropbear status
+print_success "Dropbear"
 }
-
 # --- Install UDP Custom (No significant changes needed, ensure udp-custom.sh is compatible) ---
 function ins_udpSSH(){
 clear
@@ -920,7 +899,6 @@ systemctl enable --now xray.service || true
 systemctl enable --now rc-local.service || true
 systemctl enable --now dropbear.service || true
 systemctl enable --now cron.service || true
-systemctl enable --now haproxy.service || true # Pastikan haproxy sudah diinstall dan ada unit filenya
 systemctl enable --now netfilter-persistent.service || true
 systemctl enable --now ws.service || true
 systemctl enable --now fail2ban.service || true
@@ -1048,7 +1026,6 @@ print_install "Enable Service"
     systemctl enable --now nginx.service || true
     systemctl enable --now xray.service || true
     systemctl enable --now dropbear.service || true
-    systemctl enable --now haproxy.service || true # Pastikan haproxy terinstal dan unit filenya ada
     systemctl enable --now ws.service || true
     systemctl enable --now fail2ban.service || true
     print_success "Enable Service"
