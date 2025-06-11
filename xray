@@ -2,7 +2,7 @@
 
 # ===============================================
 # XRAY Core Installer Script
-# (Installs XRAY binary and systemd service file)
+# (Installs XRAY binary, systemd service file, geoip/geosite, and initial config.json)
 # ===============================================
 
 # --- Arguments from main_installer.sh ---
@@ -10,6 +10,8 @@ XRAY_BIN_PATH="$1"
 XRAY_CONFIG_DIR="$2"
 XRAY_LOG_DIR="$3"
 XRAY_SERVICE_FILE="$4"
+FULL_DOMAIN="$5" # Needed for initial config.json generation
+XRAY_TLS_DIR="$6" # Needed for initial config.json (placeholder paths)
 
 # --- Colors for Output (copied from main script for local scope) ---
 RED='\033[0m\033[1;31m'
@@ -63,4 +65,150 @@ WantedBy=multi-user.target
 EOF_SERVICE
 sudo systemctl daemon-reload || print_error "Failed to reload systemd daemon."
 sudo systemctl enable xray.service || print_error "Failed to enable XRAY service."
+
+# Generate initial XRAY config with placeholders for TLS certs
+print_status "Generating initial XRAY configuration with TLS placeholders..."
+NEW_UUID=$(uuidgen) # Generate a fresh UUID for the primary user for initial config
+
+cat <<EOF_CONFIG | sudo tee "$XRAY_CONFIG_DIR/config.json" >/dev/null
+{
+  "log": {
+    "loglevel": "info",
+    "error": "${XRAY_LOG_DIR}/error.log",
+    "access": "${XRAY_LOG_DIR}/access.log"
+  },
+  "api": {
+    "services": [
+      "HandlerService",
+      "LoggerService",
+      "StatsService"
+    ],
+    "tag": "api"
+  },
+  "stats": {},
+  "policy": {
+    "levels": {
+      "0": {
+        "handshake": 2,
+        "connIdle": 128,
+        "statsUserUplink": true,
+        "statsUserDownlink": true
+      }
+    },
+    "system": {
+      "statsInboundUplink": true,
+      "statsInboundDownlink": true,
+      "statsOutboundUplink": true,
+      "statsOutboundDownlink": true
+    }
+  },
+  "inbounds": [
+    {
+      "listen": "0.0.0.0",
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$NEW_UUID",
+            "level": 0,
+            "email": "user@${FULL_DOMAIN}"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": ["h2", "http/1.1"],
+          "serverName": "$FULL_DOMAIN",
+          "certificates": [
+            {
+              "certificateFile": "${XRAY_TLS_DIR}/fullchain.pem", # Placeholder, will be updated
+              "keyFile": "${XRAY_TLS_DIR}/private.key"           # Placeholder, will be updated
+            }
+          ]
+        },
+        "wsSettings": {
+          "path": "/vlessws",
+          "headers": {
+            "Host": "$FULL_DOMAIN"
+          }
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": 10000,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "127.0.0.1"
+      },
+      "tag": "api"
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {},
+      "tag": "direct"
+    },
+    {
+      "protocol": "blackhole",
+      "settings": {},
+      "tag": "blocked"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": ["api"],
+        "outboundTag": "api"
+      },
+      {
+        "type": "field",
+        "ip": ["geoip:private"],
+        "outboundTag": "blocked"
+      },
+      {
+        "type": "field",
+        "outboundTag": "direct",
+        "network": "tcp,udp"
+      }
+    ]
+  },
+  "dns": {
+    "hosts": {
+      "dns.google": "8.8.8.8",
+      "dns.pub": "119.29.29.29",
+      "dns.alidns.com": "223.5.5.5",
+      "geosite:category-ads-all": "127.0.0.1"
+    },
+    "servers": [
+      {
+        "address": "https://1.1.1.1/dns-query",
+        "domains": ["geosite:geolocation-!cn"],
+        "expectIPs": ["geoip:!cn"]
+      },
+      "8.8.8.8",
+      {
+        "address": "114.114.114.114",
+        "port": 53,
+        "domains": ["geosite:cn", "geosite:category-games@cn"],
+        "expectIPs": ["geoip:cn"],
+        "skipFallback": true
+      },
+      {
+        "address": "localhost",
+        "skipFallback": true
+      }
+    ]
+  }
+}
+EOF_CONFIG
+print_status "Initial XRAY config generated with UUID: ${YELLOW}$NEW_UUID${NC}"
+echo "$NEW_UUID" # Echo UUID for main script to capture
 print_status "XRAY Core Installation Complete!"
