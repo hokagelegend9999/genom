@@ -13,7 +13,7 @@ XRAY_TLS_DIR="/etc/xray/tls"
 XRAY_SERVICE_FILE="/etc/systemd/system/xray.service"
 MENU_SCRIPT_PATH="/usr/local/bin/xray_menu"
 
-BASE_DOMAIN="hokagelegend.web.id"
+BASE_DOMAIN="hokageyoutube.my.id"
 CLOUDFLARE_API_KEY="ab8d0901acb186291e58f21359d07e7b847dc"
 ADMIN_EMAIL="faridaumiabi@gmail.com"
 TELEGRAM_BOT_TOKEN="7219522943:AAFZGZIbRU-CodrmgGJRuyXCV55sJDOSrSg"
