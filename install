@@ -198,13 +198,21 @@ function base_package() {
     print_install "Menginstall Packet Yang Dibutuhkan"
 
     # Minimal update dan upgrade sebelum instalasi paket
-    apt update -y
-    apt upgrade -y
-    apt full-upgrade -y # Lebih aman pakai apt full-upgrade
+    apt update -y || print_error "Failed to update package lists."
+    apt upgrade -y || print_error "Failed to upgrade packages."
+    apt full-upgrade -y || print_error "Failed to full-upgrade packages." # Lebih aman pakai apt full-upgrade
+
+    # --- PENTING: Instal jq secara terpisah dan lebih awal ---
+    # Ini memastikan jq tersedia untuk skrip lain yang mungkin membutuhkannya.
+    print_install "Memasang jq untuk pemrosesan JSON..."
+    apt install -y jq || print_error "Gagal menginstal jq. Beberapa fungsi mungkin tidak berjalan."
+    print_success "jq berhasil dipasang."
+    # --- Akhir instalasi jq terpisah ---
+
 
     # Paket-paket dasar
     # Ganti 'netcat' dengan 'netcat-traditional'
-    apt install -y zip pwgen openssl netcat-traditional socat cron bash-completion figlet
+    apt install -y zip pwgen openssl netcat-traditional socat cron bash-completion figlet || print_error "Failed to install core packages."
 
     # Time synchronization
     systemctl enable chrony.service || true # Konsisten gunakan chrony.service
@@ -212,29 +220,30 @@ function base_package() {
     chronyc sourcestats -v || true # Add || true for non-critical commands
     chronyc tracking -v || true # Add || true for non-critical commands
     
-    apt install -y sudo ruby
-    gem install lolcat
+    apt install -y sudo ruby || print_error "Failed to install sudo or ruby."
+    gem install lolcat || print_error "Failed to install lolcat gem."
     sudo apt-get clean all
     sudo apt-get autoremove -y
-    sudo apt-get install -y debconf-utils
+    sudo apt-get install -y debconf-utils || print_error "Failed to install debconf-utils."
 
     # Menghapus exim4 dan ufw/firewalld (hati-hati dengan ini)
     sudo apt-get remove --purge exim4 -y || true
     sudo apt-get remove --purge ufw firewalld -y || true
 
-    sudo apt-get install -y --no-install-recommends software-properties-common
+    sudo apt-get install -y --no-install-recommends software-properties-common || print_error "Failed to install software-properties-common."
 
     # iptables-persistent
     echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
     echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
 
-    # Paket-paket tambahan
+    # Paket-paket tambahan (jq dihapus dari sini karena sudah diinstal di atas)
     apt-get install -y speedtest-cli vnstat libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev \
         libcap-ng-utils libselinux1-dev libcurl4-nss-dev flex bison make libnss3-tools libevent-dev bc rsyslog \
         dos2unix zlib1g-dev libssl-dev libsqlite3-dev sed dirmngr libxml-parser-perl build-essential gcc g++ \
         python3 htop lsof tar wget curl ruby zip unzip p7zip-full python3-pip libc6 util-linux msmtp-mta \
         ca-certificates bsd-mailx iptables iptables-persistent netfilter-persistent net-tools openssl gnupg \
         gnupg2 lsb-release gcc shc make cmake git screen socat xz-utils apt-transport-https dnsutils \
+        cron openvpn easy-rsa haproxy || print_error "Failed to install additional packages." # jq dihapus dari sini
 
     print_success "Packet Yang Dibutuhkan"
 }
