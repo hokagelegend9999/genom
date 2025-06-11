@@ -1,9 +1,3 @@
-tolong tambahkan dan sesuaikan jika ada yang kurang atau sudah tidak kompatible di ubuntu 24
-
-saya biasa menjalan kan script install ini di ubuntu 20
-
-
-
 #!/bin/bash
 
 Green="\e[92;1m"
