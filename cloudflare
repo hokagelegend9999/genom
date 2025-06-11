@@ -49,8 +49,8 @@ fi
 print_status "Issuing SSL certificate for $FULL_DOMAIN via acme.sh (DNS-01 Cloudflare)..."
 "$ACME_SH_CMD" --issue --dns dns_cf -d "$FULL_DOMAIN" || {
     print_error "Failed to issue certificate via DNS-01 Challenge."
-    print_error "Ensure Cloudflare API key and domain '$FULL_DOMAIN' are correct and under your account."
-    print_error "You can debug using: '$ACME_SH_CMD --issue --dns dns_cf -d $FULL_DOMAIN --debug'"
+    print_error "Ensure your Cloudflare API key and domain '$FULL_DOMAIN' are correct and under your Cloudflare account."
+    print_error "You can debug with: '$ACME_SH_CMD --issue --dns dns_cf -d $FULL_DOMAIN --debug'"
     exit 1
 }
 
