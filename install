@@ -722,30 +722,18 @@ function ins_backup(){
 clear
 print_install "Memasang Backup Server"
 #BackupOption
-apt install rclone -y || print_error "Failed to install rclone."
-printf "n\n" | rclone config # Menggunakan 'n' untuk tidak mengkonfigurasi apa pun, hindari 'q' yang bisa membuat error
-
-wget -O /root/.config/rclone/rclone.conf "${REPO}Data/rclone.conf" || print_error "Failed to download rclone config."
-chmod 600 /root/.config/rclone/rclone.conf # Permission yang lebih aman
-
-# Install Wondershaper
-# Wondershaper adalah script, tidak perlu git clone dan make install.
-wget -q --retry 5 --retry-delay 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper -O /usr/local/sbin/wondershaper || print_error "Failed to download wondershaper script."
-chmod +x /usr/local/sbin/wondershaper
-wget -q --retry 5 --retry-delay 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper.conf -O /etc/wondershaper.conf || print_error "Failed to download wondershaper config." # Jika ada config file
-chmod 644 /etc/wondershaper.conf || true
-
-echo > /home/limit # File kosong untuk limit
-apt install msmtp-mta ca-certificates bsd-mailx -y || print_error "Failed to install msmtp dependencies."
-
-# Konfigurasi msmtp
-# !!! PERINGATAN KEAMANAN KRITIS !!!
-# Password Gmail di sini akan terekspos jika skrip ini publik.
-# SANGAT DISARANKAN untuk:
-# 1. Menggunakan App Password dari Google jika 2FA diaktifkan.
-# 2. Meminta pengguna untuk memasukkan password saat instalasi, bukan hardcode.
-# 3. Menggunakan layanan email transaksional khusus (misalnya Mailgun, SendGrid) dengan API key.
-# Saya biarkan untuk fungsionalitas, tapi Anda harus menyadari risikonya.
+apt install rclone -y
+printf "q\n" | rclone config
+wget -O /root/.config/rclone/rclone.conf "${REPO}config/rclone.conf"
+#Install Wondershaper
+cd /bin
+git clone  https://github.com/magnific0/wondershaper.git
+cd wondershaper
+sudo make install
+cd
+rm -rf wondershaper
+echo > /home/limit
+apt install msmtp-mta ca-certificates bsd-mailx -y
 cat<<EOF>>/etc/msmtprc
 defaults
 tls on
@@ -758,13 +746,11 @@ port 587
 auth on
 user oceantestdigital@gmail.com
 from oceantestdigital@gmail.com
-password jokerman77
+password jokerman77 
 logfile ~/.msmtp.log
 EOF
-chown -R root:root /etc/msmtprc # Lebih aman root:root, bukan www-data:www-data untuk file config mail
-chmod 600 /etc/msmtprc # Hanya dapat dibaca oleh root
-
-wget -q -O /etc/ipserver "${REPO}Data/ipserver" && bash /etc/ipserver || print_error "Failed to install ipserver script." # Pastikan script ipserver kompatibel
+chown -R www-data:www-data /etc/msmtprc
+wget -q -O /etc/ipserver "${REPO}files/ipserver" && bash /etc/ipserver
 print_success "Backup Server"
 }
 
