@@ -662,13 +662,13 @@ clear
 function ins_SSHD(){
 clear
 print_install "Memasang SSHD"
-wget -q -O /etc/ssh/sshd_config "${REPO}Data/sshd" >/dev/null 2>&1 || print_error "Failed to download sshd config."
-chmod 644 /etc/ssh/sshd_config # Permission yang lebih aman
-systemctl restart sshd.service || /etc/init.d/ssh restart || true # Menggunakan systemctl lebih dulu
-systemctl status sshd.service || /etc/init.d/ssh status || true # Menggunakan systemctl lebih dulu
+wget -q -O /etc/ssh/sshd_config "${REPO}Datas/sshd" >/dev/null 2>&1
+chmod 700 /etc/ssh/sshd_config
+/etc/init.d/ssh restart
+systemctl restart ssh
+/etc/init.d/ssh status
 print_success "SSHD"
 }
-
 clear
 # --- Install Dropbear (Adjusted for systemctl preference and config) ---
 function ins_dropbear(){
