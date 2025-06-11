@@ -14,6 +14,7 @@ FULL_DOMAIN="$5"
 XRAY_BIN_PATH="$6" # Used for config test
 XRAY_LOG_DIR="$7" # Not directly used here, but for consistency if needed
 MY_PUBLIC_IP="$8" # Used for acme.sh DNS update
+ACME_SH_CMD="$9" # Path to acme.sh command
 
 # --- Colors for Output (copied from main script for local scope) ---
 RED='\033[0m\033[1;31m'
@@ -29,8 +30,7 @@ print_error() { echo -e "${RED}!!! ERROR: $1${NC}" >&2; exit 1; }
 print_status "Executing Cloudflare SSL Configuration..."
 
 # Ensure acme.sh is installed globally
-ACME_SH_CMD="$HOME/.acme.sh/acme.sh"
-if ! [ -f "$ACME_SH_CMD" ]; then
+if [ ! -f "$ACME_SH_CMD" ]; then
     print_error "acme.sh command not found. It should have been installed by main installer."
 fi
 
@@ -45,14 +45,9 @@ fi
 # Set default CA for acme.sh
 "$ACME_SH_CMD" --set-default-ca --server letsencrypt || print_error "Failed to set default CA to Let's Encrypt."
 
-# Add DNS record dynamically via acme.sh (ensure domain resolves to this IP)
-print_status "Ensuring DNS A record for $FULL_DOMAIN points to $MY_PUBLIC_IP..."
-"$ACME_SH_CMD" -d "$FULL_DOMAIN" --dns dns_cf --domain-ip "$MY_PUBLIC_IP" || {
-    print_error "Failed to add/update DNS A record via Cloudflare API. Check your API key, domain, and Cloudflare settings."
-    exit 1
-}
+# Removed the problematic --add-dns line. acme.sh --issue --dns dns_cf handles DNS A record updates automatically.
+print_status "Proceeding with SSL certificate issuance. acme.sh will manage DNS A record automatically."
 
-# Langsung lanjut ke issuing certificate, karena acme.sh akan menangani DNS record-nya otomatis
 # Issue certificate using DNS-01 Cloudflare method
 print_status "Issuing SSL certificate for $FULL_DOMAIN via acme.sh (DNS-01 Cloudflare)..."
 "$ACME_SH_CMD" --issue -d "$FULL_DOMAIN" --dns dns_cf || {
@@ -62,7 +57,6 @@ print_status "Issuing SSL certificate for $FULL_DOMAIN via acme.sh (DNS-01 Cloud
     print_error "You can try running '$ACME_SH_CMD --issue -d $FULL_DOMAIN --dns dns_cf --debug' for more info."
     exit 1
 }
-
 
 # Unset Cloudflare variables for security
 unset CF_Key
