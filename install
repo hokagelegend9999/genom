@@ -22,6 +22,10 @@ BASE_DOMAIN="hokagelegend.web.id" # Your BASE DOMAIN
 CLOUDFLARE_API_KEY="ab8d0901acb186291e58f21359d07e7b847dc" # Your Cloudflare API Key
 ADMIN_EMAIL="faridaumiabi@gmail.com" # Your Admin Email
 
+# Telegram Bot Credentials (USER MUST FILL THESE)
+TELEGRAM_BOT_TOKEN="7219522943:AAFZGZIbRU-CodrmgGJRuyXCV55sJDOSrSg" # <<< ISI DENGAN BOT TOKEN ANDA
+TELEGRAM_CHAT_ID="1469244768"   # <<< ISI DENGAN CHAT ID ANDA
+
 MY_PUBLIC_IP="" # Will be detected automatically
 SUBDOMAIN=""    # User's choice or auto-generated
 FULL_DOMAIN=""  # Will be constructed from subdomain
@@ -51,6 +55,18 @@ print_status() {
 print_error() {
     echo -e "${RED}!!! ERROR: $1${NC}" >&2
     exit 1 # Exit on critical errors
+}
+
+send_telegram_notification() {
+    local message="$1"
+    if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+        curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -d chat_id="$TELEGRAM_CHAT_ID" \
+            -d text="$message" \
+            -d parse_mode="Markdown" &>/dev/null
+    else
+        print_error "Telegram Bot Token or Chat ID not set. Cannot send notification."
+    fi
 }
 
 # --- Installation Steps ---
@@ -121,7 +137,7 @@ if [ -z "$MY_PUBLIC_IP" ]; then
 fi
 echo -e "${YELLOW}Detected Public IP: $MY_PUBLIC_IP${NC}"
 
-# --- Subdomain Choice ---
+# --- Subdomain Choice (THIS IS THE CORRECTED PART) ---
 echo -e "\n${YELLOW}Choose your subdomain option:${NC}"
 echo -e "  1. Use my own custom subdomain (e.g., myvpn)"
 echo -e "  2. Auto-generate a random subdomain"
