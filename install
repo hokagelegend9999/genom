@@ -19,18 +19,25 @@ yell="\e[1;33m" # Menambahkan definisi yell
 
 # --- Initial Clear and IP Export ---
 clear
-export IP=$(curl -sS icanhazip.com)
+export IP=$(curl -sS --max-time 10 icanhazip.com)
 
 # --- Clear Screen Multiple Times ---
 clear && clear && clear
 clear;clear;clear
 clear
 
-# --- Script Validation (Adjusted) ---
+# --- Script Validation ---
 # Menggunakan checkip.amazonaws.com atau ifconfig.me karena icanhazip.com kadang bermasalah
 ipsaya=$(curl -sS --max-time 10 ipv4.icanhazip.com || curl -sS --max-time 10 checkip.amazonaws.com || curl -sS --max-time 10 ifconfig.me)
+
 # Menggunakan NTP server standar untuk mendapatkan waktu yang lebih reliable
-data_server=$(ntpdate -q pool.ntp.org 2>/dev/null | grep "stratum 2" | awk '{print $4}' | sed 's/utc.ubuntu.com//g' | xargs -I {} date -d {} +"%Y-%m-%d")
+# Pastikan 'ntpdate' terinstal atau gunakan 'timedatectl' yang lebih modern jika hanya untuk waktu lokal
+# Jika tujuannya hanya untuk mendapatkan waktu server yang akurat dari internet, ini sudah cukup baik.
+data_server=$(ntpdate -q pool.ntp.org 2>/dev/null | grep "stratum 2" | awk '{print $4}' | xargs -I {} date -d {} +"%Y-%m-%d" 2>/dev/null)
+# Fallback jika ntpdate gagal mendapatkan waktu
+if [ -z "$data_server" ]; then
+    data_server=$(date +"%Y-%m-%d") # Gunakan waktu lokal jika tidak bisa mendapatkan dari NTP
+fi
 date_list=$(date +"%Y-%m-%d" -d "$data_server")
 
 # --- Banner ---
@@ -45,7 +52,7 @@ echo ""
 sleep 2
 
 # --- Checking OS Architecture ---
-if [[ $(uname -m | awk '{print $1}') == "x86_64" ]]; then
+if [[ "$(uname -m | awk '{print $1}')" == "x86_64" ]]; then
     echo -e "${OK} Your Architecture Is Supported (${green}$(uname -m)${NC})"
 else
     echo -e "${ERROR} Your Architecture Is Not Supported (${YELLOW}$(uname -m)${NC})"
@@ -70,7 +77,7 @@ else
 fi
 
 # --- IP Address Validating ---
-if [[ "$IP" == "" ]]; then
+if [[ -z "$IP" ]]; then # Gunakan -z untuk cek string kosong
     echo -e "${ERROR} IP Address (${YELLOW}Not Detected${NC})"
 else
     echo -e "${OK} IP Address (${green}$IP${NC})"
@@ -123,22 +130,12 @@ function print_success() {
     fi
 }
 
-### Cek root (Sudah ada di bagian atas, ini duplikat)
-# function is_root() {
-#     if [[ 0 == "$UID" ]]; then
-#         print_ok "Root user Start installation process"
-#     else
-#         print_error "The current user is not the root user, please switch to the root user and run the script again"
-#     fi
-# }
-
 # --- Create Xray Directory (Adjusted) ---
 print_install "Membuat direktori xray"
 mkdir -p /etc/xray
 curl -sS --max-time 10 ifconfig.me > /etc/xray/ipvps # Menggunakan -S dan max-time
 touch /etc/xray/domain
 mkdir -p /var/log/xray
-# www-data is still default on Ubuntu for web services
 chown www-data:www-data /var/log/xray # Menggunakan grup juga
 chmod 755 /var/log/xray # Permission yang lebih tepat
 touch /var/log/xray/access.log
@@ -157,7 +154,7 @@ esac
 done < /proc/meminfo
 Ram_Usage="$((mem_used / 1024))"
 Ram_Total="$((mem_total / 1024))"
-export tanggal=`date -d "0 days" +"%d-%m-%Y - %X" `
+export tanggal=$(date +"%d-%m-%Y - %X") # Tidak perlu -d "0 days"
 export OS_Name=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/PRETTY_NAME//g' | sed 's/=//g' | sed 's/"//g')
 export Kernel=$(uname -r)
 export Arch=$(uname -m)
@@ -169,12 +166,12 @@ function first_setup(){
     echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
     echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
     print_success "Directory Xray"
-    if [[ $(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g') == "ubuntu" ]]; then
+    if [[ "$(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g')" == "ubuntu" ]]; then
         echo "Setup Dependencies $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
         sudo apt update -y
         # software-properties-common masih diperlukan untuk add-apt-repository jika digunakan
         apt-get install --no-install-recommends software-properties-common -y
-    elif [[ $(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g') == "debian" ]]; then
+    elif [[ "$(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g')" == "debian" ]]; then
         echo "Setup Dependencies For OS Is $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
         # apt-get install --no-install-recommends software-properties-common -y # Tambahkan ini jika Debian juga butuh
     else
@@ -186,10 +183,10 @@ function first_setup(){
 # --- Nginx Install (No changes needed) ---
 clear
 function nginx_install() {
-    if [[ $(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g') == "ubuntu" ]]; then
+    if [[ "$(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g')" == "ubuntu" ]]; then
         print_install "Setup nginx For OS Is $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
         sudo apt-get install nginx -y
-    elif [[ $(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g') == "debian" ]]; then
+    elif [[ "$(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g')" == "debian" ]]; then
         print_success "Setup nginx For OS Is $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
         apt -y install nginx
     else
@@ -205,17 +202,17 @@ function base_package() {
     # Minimal update dan upgrade sebelum instalasi paket
     apt update -y
     apt upgrade -y
-    # apt dist-upgrade -y # Lebih aman pakai apt full-upgrade
-    apt full-upgrade -y
+    apt full-upgrade -y # Lebih aman pakai apt full-upgrade
 
     # Paket-paket dasar
     apt install -y zip pwgen openssl netcat socat cron bash-completion figlet
 
     # Time synchronization
-    systemctl enable chronyd || systemctl enable chrony # Fallback for different chrony service names
-    systemctl restart chronyd || systemctl restart chrony
-    chronyc sourcestats -v
-    chronyc tracking -v
+    systemctl enable chronyd || systemctl enable chrony || true # Fallback and || true
+    systemctl restart chronyd || systemctl restart chrony || true # Fallback and || true
+    chronyc sourcestats -v || true # Add || true for non-critical commands
+    chronyc tracking -v || true # Add || true for non-critical commands
+    
     # ntpdate sudah diganti dengan chrony, bisa dihapus jika tidak ada kebutuhan khusus
     # apt install ntpdate -y
     # ntpdate pool.ntp.org
@@ -227,8 +224,8 @@ function base_package() {
     sudo apt-get install -y debconf-utils
 
     # Menghapus exim4 dan ufw/firewalld (hati-hati dengan ini)
-    sudo apt-get remove --purge exim4 -y
-    sudo apt-get remove --purge ufw firewalld -y
+    sudo apt-get remove --purge exim4 -y || true
+    sudo apt-get remove --purge ufw firewalld -y || true
 
     sudo apt-get install -y --no-install-recommends software-properties-common
 
@@ -263,7 +260,7 @@ read -p "    Please select numbers 1-2 or Any Button (Random Subdomain) : " host
 echo ""
 
 if [[ "$host" == "1" ]]; then
-    echo -e "    \e[1;32mPlease Enter Your Subdomain $NC"
+    echo -e "    \e[1;32mPlease Enter Your Subdomain ${NC}"
     read -p "    Subdomain: " host1
     echo "IP=" >> /var/lib/kyt/ipvps.conf # Ini sepertinya hanya untuk placeholder, IP sebenarnya sudah diekspor
     echo "$host1" > /etc/xray/domain
@@ -284,25 +281,24 @@ else
 fi
 }
 
-# --- GANTI PASSWORD DEFAULT (This function is missing in your provided script, adding a placeholder) ---
-# Saya berasumsi ada fungsi 'password_default' yang dipanggil di function 'instal'
+# --- GANTI PASSWORD DEFAULT (Placeholder function added) ---
 function password_default() {
     print_install "Setting Default Passwords (Placeholder)"
-    # Di sini Anda bisa menambahkan logika untuk mengatur password default
-    # Misalnya untuk user SSH atau password API lainnya.
-    # Karena tidak ada implementasi, saya akan menambahkan placeholder.
-    # Ini adalah bagian yang paling rawan keamanan jika tidak diimplementasikan dengan baik.
+    # Implementasikan logika untuk mengatur password default di sini.
+    # Misalnya, untuk user SSH atau password API lainnya.
+    # PENTING: Jangan masukkan password sensitif langsung ke dalam skrip publik.
+    # Gunakan variabel lingkungan atau minta input dari pengguna.
     echo "Default password settings placeholder executed. Implement your password changes here."
     print_success "Default Passwords Set"
 }
 
-# --- Restart System & Telegram Notification (Adjusted for Robustness) ---
+# --- Restart System & Telegram Notification (Cleaned and Adjusted) ---
 function restart_system(){
 #IZIN SCRIPT
 print_install "Sending Installation Notification & Setting Hostname"
 # Menggunakan curl --retry untuk ketahanan jaringan
-curl --retry 5 --retry-delay 5 "ipinfo.io/org?token=7a814b6263b02c" > /root/.isp
-curl --retry 5 --retry-delay 5 "ipinfo.io/city?token=7a814b6263b02c" > /root/.city
+curl --retry 5 --retry-delay 5 "ipinfo.io/org?token=7a814b6263b02c" > /root/.isp || echo "Unknown ISP" > /root/.isp
+curl --retry 5 --retry-delay 5 "ipinfo.io/city?token=7a814b6263b02c" > /root/.city || echo "Unknown City" > /root/.city
 MYIP=$(curl -sS --max-time 10 ipv4.icanhazip.com || curl -sS --max-time 10 checkip.amazonaws.com || curl -sS --max-time 10 ifconfig.me)
 
 echo -e "\e[32mloading...\e[0m"
@@ -313,38 +309,24 @@ izinsc="https://github.com/hokagelegend9999/ijin/raw/refs/heads/main/gnome"
 
 # USERNAME
 rm -f /usr/bin/user
-username=$(curl -sS --max-time 10 $izinsc | grep "$MYIP" | awk '{print $2}')
-echo "$username" >/usr/bin/user
-expx=$(curl -sS --max-time 10 $izinsc | grep "$MYIP" | awk '{print $3}')
-echo "$expx" >/usr/bin/e
+username=$(curl -sS --max-time 10 "$izinsc" | grep "$MYIP" | awk '{print $2}')
+echo "$username" >/usr/bin/user || echo "unknown_user" > /usr/bin/user
+expx=$(curl -sS --max-time 10 "$izinsc" | grep "$MYIP" | awk '{print $3}')
+echo "$expx" >/usr/bin/e || echo "unknown_exp" > /usr/bin/e
 
 # DETAIL ORDER
 username=$(cat /usr/bin/user)
-oid=$(cat /usr/bin/ver 2>/dev/null) # Tambahkan 2>/dev/null untuk menghindari error jika file tidak ada
+oid=$(cat /usr/bin/ver 2>/dev/null || echo "N/A") # Tambahkan 2>/dev/null untuk menghindari error jika file tidak ada
 exp=$(cat /usr/bin/e)
 clear
-
-# CERTIFICATE STATUS (Ini tidak digunakan di notifikasi Telegram, hanya variabel lokal)
-# d1=$(date -d "$valid" +%s) # 'valid' tidak didefinisikan
-# d2=$(date -d "$today" +%s) # 'today' tidak didefinisikan di sini
-# certifacate=$(((d1 - d2) / 86400))
-
-# VPS Information
-DATE=$(date +'%Y-%m-%d')
-# datediff() { # Fungsi ini juga tidak dipanggil
-#     d1=$(date -d "$1" +%s)
-#     d2=$(date -d "$2" +%s)
-#     echo -e "$COLOR1 $NC Expiry In : $(( (d1 - d2) / 86400 )) Days"
-# }
-# mai="datediff "$Exp" "$DATE"" # 'Exp' tidak didefinisikan
 
 # Status Expired Active
 Info="(${green}Active${NC})"
 Error="(${RED}ExpiRED${NC})"
 today=$(date +"%Y-%m-%d") # Menggunakan date langsung
 Exp1=$(curl -sS --max-time 10 "$izinsc" | grep "$MYIP" | awk '{print $4}')
-if [[ "$today" < "$Exp1" ]]; then # Baris ini dikoreksi
-    sts="${Info}"                 # Baris ini dikoreksi
+if [[ "$today" < "$Exp1" ]]; then # Baris ini dikoreksi dari span HTML
+    sts="${Info}"                 # Baris ini dikoreksi dari span HTML
 else
     sts="${Error}"
 fi
@@ -352,69 +334,72 @@ fi
 # Telegram Notification
 TIMES="10"
 CHATID="1469244768"
-KEY="7219522943:AAFZGZIbRU-CodrmgGJRuyXCV55sJDOSrSg" # Pastikan KEY ini masih valid dan tidak bocor
-URL="https://api.telegram.org/bot$KEY/sendMessage"
-ISP=<span class="math-inline">\(cat /root/\.isp\)
-IP\=</span>(curl -sS --max-time 10 ipv4.icanhazip.com)
-CITY=<span class="math-inline">\(cat /root/\.city\)
-TIMEZONE\=</span>(TZ='Asia/Jakarta' printf '%(%H:%M:%S)T') # Pastikan timezone benar
+KEY="7219522943:AAFZGZIbRU-CodrmgGJRuyXCV55sJDOSrSg" # PENTING: JANGAN BIARKAN API KEY TERBOCOR!
+URL="https://api.telegram.org/bot${KEY}/sendMessage" # URL harus di dalam kutip
+ISP=$(cat /root/.isp)
+IP_NOTIF=$(curl -sS --max-time 10 ipv4.icanhazip.com) # Gunakan nama variabel berbeda agar tidak bentrok
+CITY=$(cat /root/.city)
+TIMEZONE=$(TZ='Asia/Jakarta' printf '%(%H:%M:%S)T') # Pastikan timezone benar
 
 TEXT="
 <code>────────────────────</code>
 <b>⚡𝗡𝗢𝗧𝗜𝗙 𝗜𝗡𝗦𝗧𝗔𝗟𝗟 𝗦𝗖𝗥𝗜𝗣𝗧⚡</b>
 <code>────────────────────</code>
-<code>User      :</code><code>$username</code>
-<code>ISP       :</code><code>$ISP</code>
-<code>CITY      :</code><code>$CITY</code>
-<code>IP        :</code><code>$IP</code>
-<code>DATE      :</code><code>$DATE</code>
-<code>Time      :</code><code>$TIMEZONE</code>
-<code>Exp Sc.   :</code><code><span class="math-inline">exp</code\>
-<code\>─────────────────────────────</code\>
-<b\>HOKAGE CENTER VPN STORE SCRIPT </b\>
-<code\>─────────────────────────────</code\>
-<i\>Automatic Notifications From Github</i\>
+<code>User      :</code><code>${username}</code>
+<code>ISP       :</code><code>${ISP}</code>
+<code>CITY      :</code><code>${CITY}</code>
+<code>IP        :</code><code>${IP_NOTIF}</code>
+<code>DATE      :</code><code>${DATE}</code>
+<code>Time      :</code><code>${TIMEZONE}</code>
+<code>Exp Sc.   :</code><code>${exp}</code>
+<code>─────────────────────────────</code>
+<b>HOKAGE CENTER VPN STORE SCRIPT</b>
+<code>─────────────────────────────</code>
+<i>Automatic Notifications From Github</i>
 "
-\# Menggunakan jq untuk membuat JSON payload yang lebih rapi dan aman
-JSON\_PAYLOAD\=</span>(jq -n \
-  --arg chat_id "$CHATID" \
-  --arg text "$TEXT" \
-  --arg parse_mode "html" \
-  --argjson reply_markup '{"inline_keyboard":[[{"text":"ᴏʀᴅᴇʀ","url":"t.me/hokagelegend1"}]]}' \
-  '{chat_id: $chat_id, text: $text, parse_mode: $parse_mode, reply_markup: $reply_markup}')
+# Menggunakan jq untuk membuat JSON payload yang lebih rapi dan aman
+# Memastikan jq terinstal di base_package
+JSON_PAYLOAD=$(jq -n \
+    --arg chat_id "$CHATID" \
+    --arg text "$TEXT" \
+    --arg parse_mode "html" \
+    --argjson reply_markup '{"inline_keyboard":[[{"text":"ᴏʀᴅᴇʀ","url":"t.me/hokagelegend1"}]]}' \
+    '{chat_id: $chat_id, text: $text, parse_mode: $parse_mode, reply_markup: $reply_markup}')
 
 curl -s -X POST \
-     -H "Content-Type: application/json" \
-     -d "$JSON_PAYLOAD" \
-     --max-time "$TIMES" "<span class="math-inline">URL" \>/dev/null
-print\_success "Telegram Notification Sent"
-\}
+    -H "Content-Type: application/json" \
+    -d "$JSON_PAYLOAD" \
+    --max-time "$TIMES" "$URL" >/dev/null
+print_success "Telegram Notification Sent"
+}
 clear
-\# \-\-\- Pasang SSL \(Adjusted for Robustness\) \-\-\-
-function pasang\_ssl\(\) \{
+
+# --- Pasang SSL (Cleaned and Adjusted for Robustness) ---
+function pasang_ssl() {
 clear
-print\_install "Memasang SSL Pada Domain"
-rm \-rf /etc/xray/xray\.key
-rm \-rf /etc/xray/xray\.crt
-domain\=</span>(cat /etc/xray/domain || cat /root/domain) # Fallback if /etc/xray/domain not found
-    if [ -z "<span class="math-inline">domain" \]; then
-print\_error "Domain not found\. Skipping SSL installation\."
-return 1 \# Keluar dari fungsi dengan status error
+print_install "Memasang SSL Pada Domain"
+rm -rf /etc/xray/xray.key
+rm -rf /etc/xray/xray.crt
+domain=$(cat /etc/xray/domain 2>/dev/null || cat /root/domain 2>/dev/null) # Fallback if /etc/xray/domain not found
+    if [ -z "$domain" ]; then
+print_error "Domain not found. Skipping SSL installation."
+return 1 # Keluar dari fungsi dengan status error
 fi
-\# Menghentikan layanan web yang mungkin menggunakan port 80
-systemctl stop nginx 2\>/dev/null
-systemctl stop apache2 2\>/dev/null \# Tambahkan apache2 jika memungkinkan
-\# Cari proses lain yang menggunakan port 80
-PIDS\_ON\_80\=</span>(lsof -t -i:80 -sTCP:LISTEN)
-    if [ -n "<span class="math-inline">PIDS\_ON\_80" \]; then
-echo \-e "</span>{YELLOW}Warning: Processes still listening on port 80: <span class="math-inline">\{PIDS\_ON\_80\}</span>{NC}"
-        echo -e "<span class="math-inline">\{YELLOW\}Attempting to kill them\.\.\.</span>{NC}"
-        kill -9 $PIDS_ON_80 2>/dev/null
+
+# Menghentikan layanan web yang mungkin menggunakan port 80
+systemctl stop nginx || true
+systemctl stop apache2 || true # Tambahkan apache2 jika memungkinkan
+# Cari proses lain yang menggunakan port 80 dan coba hentikan
+PIDS_ON_80=$(lsof -t -i:80 -sTCP:LISTEN)
+    if [ -n "$PIDS_ON_80" ]; then
+echo -e "${YELLOW}Warning: Processes still listening on port 80: ${PIDS_ON_80}${NC}"
+        echo -e "${YELLOW}Attempting to kill them...${NC}"
+        kill -9 $PIDS_ON_80 2>/dev/null || true
         sleep 2
     fi
 
     rm -rf /root/.acme.sh
-    mkdir /root/.acme.sh
+    mkdir -p /root/.acme.sh # Gunakan -p untuk memastikan direktori dibuat
     
     # Download acme.sh dengan retry
     curl --retry 5 --retry-delay 5 https://acme-install.netlify.app/acme.sh -o /root/.acme.sh/acme.sh
@@ -423,30 +408,29 @@ echo \-e "</span>{YELLOW}Warning: Processes still listening on port 80: <span cl
         return 1
     fi
     chmod +x /root/.acme.sh/acme.sh
-    /root/.acme.sh/acme.sh --upgrade --auto-upgrade
-    /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+    /root/.acme.sh/acme.sh --upgrade --auto-upgrade || true # Tambahkan || true
+    /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt || true # Tambahkan || true
 
     # Menjalankan acme.sh untuk issue sertifikat
     if ! /root/.acme.sh/acme.sh --issue -d "$domain" --standalone -k ec-256; then
         print_error "Failed to issue SSL certificate for $domain. Check DNS records and firewall."
-        systemctl start nginx 2>/dev/null # Coba jalankan kembali nginx jika gagal
+        systemctl start nginx || true # Coba jalankan kembali nginx jika gagal
         return 1
     fi
 
     # Menginstal sertifikat
     if ! ~/.acme.sh/acme.sh --installcert -d "$domain" --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc; then
         print_error "Failed to install SSL certificate."
-        systemctl start nginx 2>/dev/null
+        systemctl start nginx || true
         return 1
     fi
 
     chmod 644 /etc/xray/xray.key # Permission yang lebih aman
     print_success "SSL Certificate"
-    systemctl start nginx 2>/dev/null # Mulai kembali nginx
+    systemctl start nginx || true # Mulai kembali nginx
 }
 
-
-# --- Make Xray Folder (No changes needed) ---
+# --- Make Xray Folder (Adjusted permissions) ---
 function make_folder_xray() {
 rm -rf /etc/vmess/.vmess.db
     rm -rf /etc/vless/.vless.db
@@ -492,40 +476,41 @@ rm -rf /etc/vmess/.vmess.db
     echo "echo -e 'Vps Config User Account'" >> /etc/user-create/user.log
     }
 
-# --- Install Xray (Adjusted) ---
+# --- Install Xray (Cleaned and Adjusted) ---
 function install_xray() {
 clear
     print_install "Core Xray Latest Version" # Mengambil versi terbaru secara dinamis
-    domainSock_dir="/run/xray";! [ -d "$domainSock_dir" ] && mkdir "$domainSock_dir" # Kutip variabel
-    chown www-data:www-data "<span class="math-inline">domainSock\_dir" \# Menggunakan grup juga
-\# Ambil Xray Core Version Terbaru
-latest\_version\="</span>(curl -sS --max-time 10 https://api.github.com/repos/XTLS/Xray-core/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)"
-    if [ -z "<span class="math-inline">latest\_version" \]; then
-print\_error "Failed to get latest Xray version\. Exiting\."
-exit 1
-fi
-bash \-c "</span>(curl -L -sS --max-time 10 https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install -u www-data --version "<span class="math-inline">latest\_version"
-if \[ \! \-f /usr/local/bin/xray \]; then
-print\_error "Xray core installation failed\. Check internet connection or Github access\."
-exit 1
-fi
-\# Ambil Config Server
-wget \-O /etc/xray/config\.json "</span>{REPO}Data/config.json" >/dev/null 2>&1
-    wget -O /etc/systemd/system/runn.service "<span class="math-inline">\{REPO\}Data/runn\.service" \>/dev/null 2\>&1
-\# chmod \+x /usr/local/bin/xray \(sudah dilakukan oleh script install\-release\.sh\)
-domain\=</span>(cat /etc/xray/domain)
-    IPVS=$(cat /etc/xray/ipvps) # Tidak terpakai dalam config.json di sini
+    domainSock_dir="/run/xray";! [ -d "$domainSock_dir" ] && mkdir -p "$domainSock_dir" # Kutip variabel, tambah -p
+    chown www-data:www-data "$domainSock_dir" # Menggunakan grup juga
 
-    print_success "Core Xray <span class="math-inline">latest\_version Latest Version"
-\# Settings UP Nginx Server
+# Ambil Xray Core Version Terbaru
+latest_version=$(curl -sS --max-time 10 https://api.github.com/repos/XTLS/Xray-core/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)
+    if [ -z "$latest_version" ]; then
+print_error "Failed to get latest Xray version. Exiting."
+exit 1
+fi
+bash -c "$(curl -L -sS --max-time 10 https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install -u www-data --version "$latest_version"
+if [ ! -f /usr/local/bin/xray ]; then
+print_error "Xray core installation failed. Check internet connection or Github access."
+exit 1
+fi
+# Ambil Config Server
+wget -O /etc/xray/config.json "${REPO}Data/config.json" >/dev/null 2>&1
+    wget -O /etc/systemd/system/runn.service "${REPO}Data/runn.service" >/dev/null 2>&1
+# chmod +x /usr/local/bin/xray (sudah dilakukan oleh script install-release.sh)
+domain=$(cat /etc/xray/domain)
+    # IPVS=$(cat /etc/xray/ipvps) # Tidak terpakai dalam config.json di sini
+
+    print_success "Core Xray ${latest_version} Latest Version"
+# Settings UP Nginx Server
 clear
-curl \-sS \-\-max\-time 10 ipinfo\.io/city \>\>/etc/xray/city
-curl \-sS \-\-max\-time 10 ipinfo\.io/org \| cut \-d " " \-f 2\-10 \>\>/etc/xray/isp
-print\_install "Memasang Konfigurasi Packet"
-wget \-O /etc/nginx/conf\.d/xray\.conf "</span>{REPO}Data/xray.conf" >/dev/null 2>&1
-    sed -i "s/xxx/<span class="math-inline">\{domain\}/g" /etc/nginx/conf\.d/xray\.conf
-\# Pastikan nginx\.conf yang di\-download kompatibel dengan Nginx versi Ubuntu 24\.04
-sudo curl \-fsSL "</span>{REPO}Data/nginx.conf" -o /etc/nginx/nginx.conf
+curl -sS --max-time 10 ipinfo.io/city >>/etc/xray/city || echo "Unknown City" >>/etc/xray/city
+curl -sS --max-time 10 ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp || echo "Unknown ISP" >>/etc/xray/isp
+print_install "Memasang Konfigurasi Packet"
+wget -O /etc/nginx/conf.d/xray.conf "${REPO}Data/xray.conf" >/dev/null 2>&1
+    sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
+# Pastikan nginx.conf yang di-download kompatibel dengan Nginx versi Ubuntu 24.04
+sudo curl -fsSL "${REPO}Data/nginx.conf" -o /etc/nginx/nginx.conf
 
     # > Set Permission
     chmod +x /etc/systemd/system/runn.service
@@ -554,65 +539,71 @@ EOF
 print_success "Konfigurasi Packet"
 }
 
-# --- SSH Configuration (Adjusted) ---
+# --- SSH Configuration (Cleaned and Adjusted) ---
 function ssh(){
 clear
 print_install "Memasang Password SSH & Konfigurasi Sistem"
     # Pastikan file common-password ini masih kompatibel dengan PAM di Ubuntu 24.04
-    wget -O /etc/pam.d/common-password "<span class="math-inline">\{REPO\}Data/password"
-chmod 644 /etc/pam\.d/common\-password \# Permission yang lebih aman
-\# Keyboard configuration \- ini biasanya dilakukan secara interaktif atau lewat cloud\-init\.
-\# Untuk non\-interactive, ini masih bisa jalan tapi kadang tidak efektif\.
-DEBIAN\_FRONTEND\=noninteractive dpkg\-reconfigure keyboard\-configuration
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/altgr select The default for the keyboard layout"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/compose select No compose key"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/ctrl\_alt\_bksp boolean false"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/layoutcode string us" \# Ganti 'de' ke 'us' jika default keyboard English
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/layout select English"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/modelcode string pc105"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/model select Generic 105\-key \(Intl\) PC"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/optionscode string "
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/store\_defaults\_in\_debconf\_db boolean true"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/switch select No temporary switch"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/toggle select No toggling"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/unsupported\_config\_layout boolean true"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/unsupported\_config\_options boolean true"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/unsupported\_layout boolean true"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/unsupported\_options boolean true"
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/variantcode string "
-debconf\-set\-selections <<<"keyboard\-configuration keyboard\-configuration/variant select English \(US\)" \# Lebih spesifik
-\# go to root
-cd
-\# Edit file /etc/systemd/system/rc\-local\.service \(No change needed\)
-cat \> /etc/systemd/system/rc\-local\.service <<\-EOF
-\[Unit\]
-Description\=/etc/rc\.local
-ConditionPathExists\=/etc/rc\.local
-\[Service\]
-Type\=forking
-ExecStart\=/etc/rc\.local start
-TimeoutSec\=0
-StandardOutput\=tty
-RemainAfterExit\=yes
-SysVStartPriority\=99
-\[Install\]
-WantedBy\=multi\-user\.target
+    wget -O /etc/pam.d/common-password "${REPO}Data/password" || true
+chmod 644 /etc/pam.d/common-password # Permission yang lebih aman
+
+# Keyboard configuration - ini biasanya dilakukan secara interaktif atau lewat cloud-init.
+# Untuk non-interactive, ini masih bisa jalan tapi kadang tidak efektif.
+DEBIAN_FRONTEND=noninteractive dpkg-reconfigure keyboard-configuration || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/altgr select The default for the keyboard layout" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/compose select No compose key" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/ctrl_alt_bksp boolean false" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/layoutcode string us" # Ganti 'de' ke 'us' jika default keyboard English
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/layout select English" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/modelcode string pc105" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/model select Generic 105-key (Intl) PC" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/optionscode string " || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/store_defaults_in_debconf_db boolean true" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/switch select No temporary switch" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/toggle select No toggling" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/unsupported_config_layout boolean true" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/unsupported_config_options boolean true" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/unsupported_layout boolean true" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/unsupported_options boolean true" || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/variantcode string " || true
+debconf-set-selections <<<"keyboard-configuration keyboard-configuration/variant select English (US)" # Lebih spesifik
+# go to root
+cd /root || exit # Pindah ke root, keluar jika gagal
+
+# Edit file /etc/systemd/system/rc-local.service (No change needed)
+cat > /etc/systemd/system/rc-local.service <<-EOF
+[Unit]
+Description=/etc/rc.local
+ConditionPathExists=/etc/rc.local
+[Service]
+Type=forking
+ExecStart=/etc/rc.local start
+TimeoutSec=0
+StandardOutput=tty
+RemainAfterExit=yes
+SysVStartPriority=99
+[Install]
+WantedBy=multi-user.target
 EOF
-\# nano /etc/rc\.local \(No change needed\)
-cat \> /etc/rc\.local <<\-EOF
-\#\!/bin/sh \-e
-\# rc\.local
-\# By default this script does nothing\.
+
+# nano /etc/rc.local (No change needed)
+cat > /etc/rc.local <<-EOF
+#!/bin/sh -e
+# rc.local
+# By default this script does nothing.
 exit 0
 EOF
-\# Ubah izin akses
-chmod \+x /etc/rc\.local
-\# enable rc local
-systemctl enable rc\-local
-systemctl start rc\-local\.service
-\# disable ipv6 \(No change needed\)
-echo 1 \> /proc/sys/net/ipv6/conf/all/disable\_ipv6
-sed \-i '</span> i\echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6' /etc/rc.local
+
+# Ubah izin akses
+chmod +x /etc/rc.local
+
+# enable rc local
+systemctl enable rc-local || true
+systemctl start rc-local.service || true
+
+# disable ipv6 (No change needed)
+echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
+sed -i '$ i\echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6' /etc/rc.local
 
 # set time GMT +7 (No change needed)
 ln -fs /usr/share/zoneinfo/Asia/Jakarta /etc/localtime
@@ -622,66 +613,71 @@ sed -i 's/AcceptEnv/#AcceptEnv/g' /etc/ssh/sshd_config
 print_success "Password SSH & Konfigurasi Sistem"
 }
 
-# --- UDP Mini (No significant changes needed, ensure fv-tunnel and udp-mini are compatible) ---
+# --- UDP Mini (Cleaned and Adjusted for robustness) ---
 function udp_mini(){
 clear
 print_install "Memasang Service Limit IP & Quota"
 # Pastikan fv-tunnel adalah binary yang kompatibel dengan Ubuntu 24.04
-wget -q --retry 5 --retry-delay 5 "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/Data/fv-tunnel" && chmod +x fv-tunnel && ./fv-tunnel
+wget -q --retry 5 --retry-delay 5 "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/Data/fv-tunnel" && chmod +x fv-tunnel && ./fv-tunnel || print_error "Failed to install fv-tunnel"
 
 # Installing UDP Mini
 mkdir -p /usr/local/kyt/
-wget -q -O /usr/local/kyt/udp-mini "<span class="math-inline">\{REPO\}Data/udp\-mini"
-chmod \+x /usr/local/kyt/udp\-mini
-wget \-q \-O /etc/systemd/system/udp\-mini\-1\.service "</span>{REPO}Data/udp-mini-1.service"
-wget -q -O /etc/systemd/system/udp-mini-2.service "<span class="math-inline">\{REPO\}Data/udp\-mini\-2\.service"
-wget \-q \-O /etc/systemd/system/udp\-mini\-3\.service "</span>{REPO}Data/udp-mini-3.service"
+wget -q -O /usr/local/kyt/udp-mini "${REPO}Data/udp-mini" || print_error "Failed to download udp-mini"
+chmod +x /usr/local/kyt/udp-mini
+wget -q -O /etc/systemd/system/udp-mini-1.service "${REPO}Data/udp-mini-1.service" || print_error "Failed to download udp-mini-1.service"
+wget -q -O /etc/systemd/system/udp-mini-2.service "${REPO}Data/udp-mini-2.service" || print_error "Failed to download udp-mini-2.service"
+wget -q -O /etc/systemd/system/udp-mini-3.service "${REPO}Data/udp-mini-3.service" || print_error "Failed to download udp-mini-3.service"
+
 systemctl disable udp-mini-1 || true
 systemctl stop udp-mini-1 || true
-systemctl enable udp-mini-1
-systemctl start udp-mini-1
+systemctl enable udp-mini-1 || true
+systemctl start udp-mini-1 || true
+
 systemctl disable udp-mini-2 || true
 systemctl stop udp-mini-2 || true
-systemctl enable udp-mini-2
-systemctl start udp-mini-2
+systemctl enable udp-mini-2 || true
+systemctl start udp-mini-2 || true
+
 systemctl disable udp-mini-3 || true
 systemctl stop udp-mini-3 || true
-systemctl enable udp-mini-3
-systemctl start udp-mini-3
+systemctl enable udp-mini-3 || true
+systemctl start udp-mini-3 || true
+
 print_success "Limit IP Service"
 }
 
-# --- SSH SlowDNS (No significant changes needed, ensure nameserver script is compatible) ---
+# --- SSH SlowDNS (Cleaned) ---
 function ssh_slow(){
 clear
 print_install "Memasang modul SlowDNS Server"
-    wget -q -O /tmp/nameserver "<span class="math-inline">\{REPO\}Data/nameserver" \>/dev/null 2\>&1
-chmod \+x /tmp/nameserver
-bash /tmp/nameserver \| tee /root/install\.log \# Log output to file
-print\_success "SlowDNS"
-\}
+    wget -q -O /tmp/nameserver "${REPO}Data/nameserver" >/dev/null 2>&1 || print_error "Failed to download nameserver script."
+chmod +x /tmp/nameserver
+bash /tmp/nameserver | tee /root/install.log # Log output to file
+print_success "SlowDNS"
+}
 clear
-\# \-\-\- Install SSHD \(No significant changes needed, ensure sshd config is compatible\) \-\-\-
-function ins\_SSHD\(\)\{
+
+# --- Install SSHD (Adjusted for systemctl preference) ---
+function ins_SSHD(){
 clear
-print\_install "Memasang SSHD"
-wget \-q \-O /etc/ssh/sshd\_config "</span>{REPO}Data/sshd" >/dev/null 2>&1
+print_install "Memasang SSHD"
+wget -q -O /etc/ssh/sshd_config "${REPO}Data/sshd" >/dev/null 2>&1 || print_error "Failed to download sshd config."
 chmod 644 /etc/ssh/sshd_config # Permission yang lebih aman
-systemctl restart sshd || /etc/init.d/ssh restart # Menggunakan systemctl lebih dulu
-systemctl status sshd || /etc/init.d/ssh status # Menggunakan systemctl lebih dulu
+systemctl restart sshd || /etc/init.d/ssh restart || true # Menggunakan systemctl lebih dulu
+systemctl status sshd || /etc/init.d/ssh status || true # Menggunakan systemctl lebih dulu
 print_success "SSHD"
 }
 
 clear
-# --- Install Dropbear (No significant changes needed, ensure dropbear.conf is compatible) ---
+# --- Install Dropbear (Adjusted for systemctl preference) ---
 function ins_dropbear(){
 clear
 print_install "Menginstall Dropbear"
-apt-get install dropbear -y > /dev/null 2>&1
-wget -q -O /etc/default/dropbear "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/dropbear.conf"
+apt-get install dropbear -y > /dev/null 2>&1 || print_error "Failed to install dropbear."
+wget -q -O /etc/default/dropbear "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/dropbear.conf" || print_error "Failed to download dropbear config."
 chmod 644 /etc/default/dropbear # Permission yang lebih aman
-systemctl restart dropbear || /etc/init.d/dropbear restart # Menggunakan systemctl lebih dulu
-systemctl status dropbear || /etc/init.d/dropbear status # Menggunakan systemctl lebih dulu
+systemctl restart dropbear || /etc/init.d/dropbear restart || true # Menggunakan systemctl lebih dulu
+systemctl status dropbear || /etc/init.d/dropbear status || true # Menggunakan systemctl lebih dulu
 print_success "Dropbear"
 }
 
@@ -689,30 +685,21 @@ print_success "Dropbear"
 function ins_udpSSH(){
 clear
 print_install "Menginstall Udp-custom"
-wget -q "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/udp-custom/udp-custom.sh"
-chmod +x udp-custom.sh
-bash udp-custom.sh
-rm -fr udp-custom.sh
+wget -q "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/udp-custom/udp-custom.sh" -O /tmp/udp-custom.sh || print_error "Failed to download udp-custom script."
+chmod +x /tmp/udp-custom.sh
+bash /tmp/udp-custom.sh
+rm -fr /tmp/udp-custom.sh
 print_success "Udp-custom"
 }
 clear
 
-# --- Install Vnstat (Adjusted for modern Vnstat usage) ---
+# --- Install Vnstat (Cleaned and Adjusted for modern Vnstat usage) ---
 function ins_vnstat(){
 clear
 print_install "Menginstall Vnstat"
-apt -y install vnstat > /dev/null 2>&1
-systemctl restart vnstat || /etc/init.d/vnstat restart # Menggunakan systemctl
-apt -y install libsqlite3-dev > /dev/null 2>&1
-
-# Membangun dari source jika perlu, tapi apt install biasanya sudah cukup
-# Jika apt install vnstat sudah menginstal versi terbaru yang dibutuhkan, bagian ini bisa dilewati.
-# Jika Anda tetap ingin membangun dari source, pastikan dependensi build terpenuhi.
-# wget https://humdi.net/vnstat/vnstat-2.6.tar.gz
-# tar zxvf vnstat-2.6.tar.gz
-# cd vnstat-2.6
-# ./configure --prefix=/usr --sysconfdir=/etc && make && make install
-# cd
+apt -y install vnstat > /dev/null 2>&1 || print_error "Failed to install vnstat."
+systemctl restart vnstat || /etc/init.d/vnstat restart || true # Menggunakan systemctl
+apt -y install libsqlite3-dev > /dev/null 2>&1 || print_error "Failed to install libsqlite3-dev."
 
 # Mendapatkan nama antarmuka jaringan utama secara otomatis
 NET=$(ip -o -4 route show to default | awk '{print $5}' | head -n 1)
@@ -721,39 +708,46 @@ if [ -z "$NET" ]; then
     NET="eth0" # Fallback
 fi
 
-vnstat -u -i "$NET"
-sed -i "s/Interface \"\"eth0\"\"/Interface \"\"<span class="math-inline">NET\\"\\"/g" /etc/vnstat\.conf
-chown vnstat\:vnstat /var/lib/vnstat \-R
-systemctl enable vnstat
-systemctl restart vnstat
-systemctl status vnstat
-rm \-f /root/vnstat\-2\.6\.tar\.gz 2\>/dev/null
-rm \-rf /root/vnstat\-2\.6 2\>/dev/null
-print\_success "Vnstat"
-\}
-\# \-\-\- Install Backup \(Adjusted\) \-\-\-
-function ins\_backup\(\)\{
-clear
-print\_install "Memasang Backup Server"
-\#BackupOption
-apt install rclone \-y
-printf "q\\n" \| rclone config \# Ini akan membuat rclone config kosong, perlu diisi secara manual atau dengan file
-wget \-O /root/\.config/rclone/rclone\.conf "</span>{REPO}Data/rclone.conf" # Path standar rclone config
-# Install Wondershaper
-cd /bin
-# Menggunakan wget atau curl langsung karena git clone akan menempatkan di /bin/wondershaper
-wget -q --retry 5 --retry-delay 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper -O /usr/local/sbin/wondershaper
-chmod +x /usr/local/sbin/wondershaper
-wget -q --retry 5 --retry-delay 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper.conf -O /etc/wondershaper.conf # Jika ada config file
-cd /root # Kembali ke root
-rm -rf wondershaper # Hapus direktori jika ada
-echo > /home/limit # File kosong untuk limit
-apt install msmtp-mta ca-certificates bsd-mailx -y
+vnstat -u -i "$NET" || true # Menambah || true
+sed -i "s/Interface \"\"eth0\"\"/Interface \"\"${NET}\"\"/g" /etc/vnstat.conf || true
+chown vnstat:vnstat /var/lib/vnstat -R || true
+systemctl enable vnstat || true
+systemctl restart vnstat || true
+systemctl status vnstat || true
+rm -f /root/vnstat-2.6.tar.gz 2>/dev/null || true
+rm -rf /root/vnstat-2.6 2>/dev/null || true
+print_success "Vnstat"
+}
 
-# Konfigurasi msmtp (PASTIKAN PASSWORD GMAIL INI TIDAK EXPOSED DI GITHUB PUBLIK!)
-# Ini adalah risiko keamanan yang sangat besar jika skrip ini publik.
-# Pertimbangkan menggunakan variabel lingkungan atau input user.
-# Untuk Gmail, Anda mungkin perlu App Password jika 2FA diaktifkan.
+# --- Install Backup (Cleaned and Adjusted) ---
+function ins_backup(){
+clear
+print_install "Memasang Backup Server"
+#BackupOption
+apt install rclone -y || print_error "Failed to install rclone."
+printf "n\n" | rclone config # Menggunakan 'n' untuk tidak mengkonfigurasi apa pun, hindari 'q' yang bisa membuat error
+
+wget -O /root/.config/rclone/rclone.conf "${REPO}Data/rclone.conf" || print_error "Failed to download rclone config."
+chmod 600 /root/.config/rclone/rclone.conf # Permission yang lebih aman
+
+# Install Wondershaper
+# Wondershaper adalah script, tidak perlu git clone dan make install.
+wget -q --retry 5 --retry-delay 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper -O /usr/local/sbin/wondershaper || print_error "Failed to download wondershaper script."
+chmod +x /usr/local/sbin/wondershaper
+wget -q --retry 5 --retry-delay 5 https://raw.githubusercontent.com/magnific0/wondershaper/master/wondershaper.conf -O /etc/wondershaper.conf || print_error "Failed to download wondershaper config." # Jika ada config file
+chmod 644 /etc/wondershaper.conf
+
+echo > /home/limit # File kosong untuk limit
+apt install msmtp-mta ca-certificates bsd-mailx -y || print_error "Failed to install msmtp dependencies."
+
+# Konfigurasi msmtp
+# !!! PERINGATAN KEAMANAN KRITIS !!!
+# Password Gmail di sini akan terekspos jika skrip ini publik.
+# SANGAT DISARANKAN untuk:
+# 1. Menggunakan App Password dari Google jika 2FA diaktifkan.
+# 2. Meminta pengguna untuk memasukkan password saat instalasi, bukan hardcode.
+# 3. Menggunakan layanan email transaksional khusus (misalnya Mailgun, SendGrid) dengan API key.
+# Saya biarkan untuk fungsionalitas, tapi Anda harus menyadari risikonya.
 cat<<EOF>>/etc/msmtprc
 defaults
 tls on
@@ -772,60 +766,63 @@ EOF
 chown -R root:root /etc/msmtprc # Lebih aman root:root, bukan www-data:www-data untuk file config mail
 chmod 600 /etc/msmtprc # Hanya dapat dibaca oleh root
 
-wget -q -O /etc/ipserver "<span class="math-inline">\{REPO\}Data/ipserver" && bash /etc/ipserver \# Pastikan script ipserver kompatibel
-print\_success "Backup Server"
-\}
+wget -q -O /etc/ipserver "${REPO}Data/ipserver" && bash /etc/ipserver || print_error "Failed to install ipserver script." # Pastikan script ipserver kompatibel
+print_success "Backup Server"
+}
+
+# --- Install Swap (Cleaned and Adjusted) ---
+function ins_swab(){
 clear
-\# \-\-\- Install Swap \(No significant changes needed, gotop path adjusted\) \-\-\-
-function ins\_swab\(\)\{
-clear
-print\_install "Memasang Swap 1 G"
-gotop\_latest\="</span>(curl -sS --max-time 10 https://api.github.com/repos/xxxserxxx/gotop/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)"
-    gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v${gotop_latest}/gotop_v${gotop_latest}_linux_amd64.deb"
+print_install "Memasang Swap 1 G"
+gotop_latest=$(curl -sS --max-time 10 https://api.github.com/repos/xxxserxxx/gotop/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)
+gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v${gotop_latest}/gotop_v${gotop_latest}_linux_amd64.deb"
     
     # Download gotop
-    if ! curl -sL --max-time 10 "<span class="math-inline">gotop\_link" \-o /tmp/gotop\.deb; then
-print\_error "Failed to download gotop\. Continuing without it\."
+    if ! curl -sL --max-time 10 "$gotop_link" -o /tmp/gotop.deb; then
+print_error "Failed to download gotop. Continuing without it."
 else
-dpkg \-i /tmp/gotop\.deb \>/dev/null 2\>&1
-rm \-f /tmp/gotop\.deb
+dpkg -i /tmp/gotop.deb >/dev/null 2>&1 || print_error "Failed to install gotop deb package."
+rm -f /tmp/gotop.deb || true
 fi
-\# \> Buat swap sebesar 1G
-dd if\=/dev/zero of\=/swapfile bs\=1M count\=1024 \# Menggunakan bs\=1M lebih cepat
-mkswap /swapfile
-chown root\:root /swapfile
-chmod 0600 /swapfile \>/dev/null 2\>&1
-swapon /swapfile \>/dev/null 2\>&1
-sed \-i '</span> i\/swapfile               swap                    swap    defaults        0 0' /etc/fstab
+
+# > Buat swap sebesar 1G
+dd if=/dev/zero of=/swapfile bs=1M count=1024 || print_error "Failed to create swapfile." # Menggunakan bs=1M lebih cepat
+mkswap /swapfile || print_error "Failed to format swapfile."
+chown root:root /swapfile || print_error "Failed to set swapfile ownership."
+chmod 0600 /swapfile >/dev/null 2>&1 || print_error "Failed to set swapfile permissions."
+swapon /swapfile >/dev/null 2>&1 || print_error "Failed to enable swapfile."
+sed -i '$ i\/swapfile               swap               swap    defaults        0 0' /etc/fstab || print_error "Failed to add swap to fstab."
 
     # > Singkronisasi jam (chrony sudah diatur sebelumnya)
-    chronyd -q 'server 0.id.pool.ntp.org iburst' # Menggunakan server NTP Indonesia
-    chronyc sourcestats -v
-    chronyc tracking -v
+    chronyd -q 'server 0.id.pool.ntp.org iburst' || true # Menggunakan server NTP Indonesia
+    chronyc sourcestats -v || true
+    chronyc tracking -v || true
     
     # Install BBR
-    wget -q --retry 5 --retry-delay 5 "<span class="math-inline">\{REPO\}Data/bbr\.sh" && chmod \+x bbr\.sh && \./bbr\.sh
-rm \-f bbr\.sh \# Hapus script bbr setelah dijalankan
-print\_success "Swap 1 G & BBR"
-\}
-\# \-\-\- Install Fail2ban & DDOS Flate \(Adjusted\) \-\-\-
-function ins\_Fail2ban\(\)\{
+    wget -q --retry 5 --retry-delay 5 "${REPO}Data/bbr.sh" && chmod +x bbr.sh && ./bbr.sh || print_error "Failed to install BBR."
+rm -f bbr.sh || true # Hapus script bbr setelah dijalankan
+print_success "Swap 1 G & BBR"
+}
+
+# --- Install Fail2ban & DDOS Flate (Adjusted) ---
+function ins_Fail2ban(){
 clear
-print\_install "Menginstall Fail2ban"
-\# Menginstal fail2ban jika belum
-apt \-y install fail2ban \> /dev/null 2\>&1
-systemctl enable \-\-now fail2ban
-systemctl restart fail2ban
-systemctl status fail2ban \| grep Active
-\# Instal DDOS Flate
-if \[ \-d '/usr/local/ddos' \]; then
-echo "DDOS Flate already installed\. Skipping\."
+print_install "Menginstall Fail2ban"
+# Menginstal fail2ban jika belum
+apt -y install fail2ban > /dev/null 2>&1 || print_error "Failed to install fail2ban."
+systemctl enable --now fail2ban || true
+systemctl restart fail2ban || true
+systemctl status fail2ban | grep Active || true
+
+# Instal DDOS Flate
+if [ -d '/usr/local/ddos' ]; then
+    echo "DDOS Flate already installed. Skipping."
 else
-mkdir /usr/local/ddos
-\# Anda perlu menyediakan cara untuk menginstal DDOS Flate di sini,
-\# misalnya dengan mengunduh script atau file instalasinya\.
-\# Contoh placeholder\:
-\# wget \-q \-O /usr/local/ddos/ddos\.sh "</span>{REPO}Data/ddos.sh"
+    mkdir -p /usr/local/ddos # Gunakan -p
+    # Anda perlu menyediakan cara untuk menginstal DDOS Flate di sini,
+    # misalnya dengan mengunduh script atau file instalasinya.
+    # Contoh placeholder:
+    # wget -q -O /usr/local/ddos/ddos.sh "${REPO}Data/ddos.sh"
     # chmod +x /usr/local/ddos/ddos.sh
     # bash /usr/local/ddos/ddos.sh install
     echo "Placeholder for DDOS Flate installation. Please add actual installation steps."
@@ -837,53 +834,56 @@ echo "Banner /etc/kyt.txt" >>/etc/ssh/sshd_config
 sed -i 's@DROPBEAR_BANNER=""@DROPBEAR_BANNER="/etc/kyt.txt"@g' /etc/default/dropbear
 
 # Ganti Banner
-wget -O /etc/kyt.txt "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/issue.net"
+wget -O /etc/kyt.txt "https://raw.githubusercontent.com/hokagelegend9999/genom/refs/heads/main/Data/issue.net" || print_error "Failed to download banner file."
 print_success "Fail2ban & DDOS Flate"
 }
 
-# --- Install ePro WebSocket Proxy (Adjusted) ---
+# --- Install ePro WebSocket Proxy (Cleaned and Adjusted) ---
 function ins_epro(){
 clear
 print_install "Menginstall ePro WebSocket Proxy"
-    wget -O /usr/bin/ws "<span class="math-inline">\{REPO\}Data/ws" \>/dev/null 2\>&1
-wget \-O /usr/bin/tun\.conf "</span>{REPO}Data/tun.conf" >/dev/null 2>&1
-    wget -O /etc/systemd/system/ws.service "<span class="math-inline">\{REPO\}Data/ws\.service" \>/dev/null 2\>&1
-chmod \+x /etc/systemd/system/ws\.service
-chmod \+x /usr/bin/ws
-chmod 644 /usr/bin/tun\.conf
-systemctl disable ws \|\| true
-systemctl stop ws \|\| true
-systemctl enable ws
-systemctl start ws
-systemctl restart ws
-\# Mengunduh geosite\.dat dan geoip\.dat
-\# Pastikan ini adalah link terbaru dan valid
-wget \-q \-O /usr/local/share/xray/geosite\.dat "https\://github\.com/Loyalsoldier/v2ray\-rules\-dat/releases/latest/download/geosite\.dat" \>/dev/null 2\>&1
-wget \-q \-O /usr/local/share/xray/geoip\.dat "https\://github\.com/Loyalsoldier/v2ray\-rules\-dat/releases/latest/download/geoip\.dat" \>/dev/null 2\>&1
-wget \-O /usr/sbin/ftvpn "</span>{REPO}Data/ftvpn" >/dev/null 2>&1
+    wget -O /usr/bin/ws "${REPO}Data/ws" >/dev/null 2>&1 || print_error "Failed to download ws binary."
+wget -O /usr/bin/tun.conf "${REPO}Data/tun.conf" >/dev/null 2>&1 || print_error "Failed to download tun.conf."
+    wget -O /etc/systemd/system/ws.service "${REPO}Data/ws.service" >/dev/null 2>&1 || print_error "Failed to download ws.service."
+chmod +x /etc/systemd/system/ws.service
+chmod +x /usr/bin/ws
+chmod 644 /usr/bin/tun.conf
+systemctl disable ws || true
+systemctl stop ws || true
+systemctl enable ws || true
+systemctl start ws || true
+systemctl restart ws || true
+
+# Mengunduh geosite.dat dan geoip.dat
+# Pastikan ini adalah link terbaru dan valid
+wget -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" >/dev/null 2>&1 || print_error "Failed to download geosite.dat."
+wget -q -O /usr/local/share/xray/geoip.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" >/dev/null 2>&1 || print_error "Failed to download geoip.dat."
+
+wget -O /usr/sbin/ftvpn "${REPO}Data/ftvpn" >/dev/null 2>&1 || print_error "Failed to download ftvpn."
 chmod +x /usr/sbin/ftvpn
 
 # Aturan IPtables untuk memblokir torrent (tetap dipertahankan, tapi catat batasan)
-iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP
-iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP
-iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP
-iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP
-iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP
-iptables -A FORWARD -m string --algo bm --string "peer_id=" -j DROP
-iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP
-iptables -A FORWARD -m string --algo bm --string "announce.php?passkey=" -j DROP
-iptables -A FORWARD -m string --algo bm --string "torrent" -j DROP
-iptables -A FORWARD -m string --algo bm --string "announce" -j DROP
-iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP
-iptables-save > /etc/iptables.up.rules
-iptables-restore -t < /etc/iptables.up.rules
-netfilter-persistent save
-netfilter-persistent reload
+iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP || true
+iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP || true
+iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP || true
+iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP || true
+iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP || true
+iptables -A FORWARD -m string --algo bm --string "peer_id=" -j DROP || true
+iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP || true
+iptables -A FORWARD -m string --algo bm --string "announce.php?passkey=" -j DROP || true
+iptables -A FORWARD -m string --algo bm --string "torrent" -j DROP || true
+iptables -A FORWARD -m string --algo bm --string "announce" -j DROP || true
+iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP || true
+
+iptables-save > /etc/iptables.up.rules || true
+iptables-restore -t < /etc/iptables.up.rules || true
+netfilter-persistent save || true
+netfilter-persistent reload || true
 
 # remove unnecessary files
-cd /root # Pastikan di direktori root sebelum autoclean/autoremove
-apt autoclean -y >/dev/null 2>&1
-apt autoremove -y >/dev/null 2>&1
+cd /root || exit # Pastikan di direktori root sebelum autoclean/autoremove
+apt autoclean -y >/dev/null 2>&1 || true
+apt autoremove -y >/dev/null 2>&1 || true
 print_success "ePro WebSocket Proxy"
 }
 
@@ -892,30 +892,30 @@ function ins_restart(){
 clear
 print_install "Restarting All Services"
 # Menggunakan systemctl untuk semua layanan
-systemctl restart nginx || /etc/init.d/nginx restart
-systemctl restart sshd || /etc/init.d/ssh restart # Menggunakan sshd
-systemctl restart dropbear || /etc/init.d/dropbear restart
-systemctl restart fail2ban || /etc/init.d/fail2ban restart
-systemctl restart vnstat || /etc/init.d/vnstat restart
-systemctl restart cron || /etc/init.d/cron restart
-systemctl daemon-reload
-systemctl start netfilter-persistent
-systemctl enable --now nginx
-systemctl enable --now xray
-systemctl enable --now rc-local
-systemctl enable --now dropbear
-systemctl enable --now cron
-systemctl enable --now haproxy # Pastikan haproxy sudah diinstall dan ada unit filenya
-systemctl enable --now netfilter-persistent
-systemctl enable --now ws
-systemctl enable --now fail2ban
+systemctl restart nginx || /etc/init.d/nginx restart || true
+systemctl restart sshd || /etc/init.d/ssh restart || true # Menggunakan sshd
+systemctl restart dropbear || /etc/init.d/dropbear restart || true
+systemctl restart fail2ban || /etc/init.d/fail2ban restart || true
+systemctl restart vnstat || /etc/init.d/vnstat restart || true
+systemctl restart cron || /etc/init.d/cron restart || true
+systemctl daemon-reload || true
+systemctl start netfilter-persistent || true
+systemctl enable --now nginx || true
+systemctl enable --now xray || true
+systemctl enable --now rc-local || true
+systemctl enable --now dropbear || true
+systemctl enable --now cron || true
+systemctl enable --now haproxy || true # Pastikan haproxy sudah diinstall dan ada unit filenya
+systemctl enable --now netfilter-persistent || true
+systemctl enable --now ws || true
+systemctl enable --now fail2ban || true
 history -c
 echo "unset HISTFILE" >> /etc/profile
 
-cd /root # Pastikan di direktori root sebelum menghapus file
-rm -f /root/openvpn # Jika ini adalah file yang perlu dihapus setelah instalasi
-rm -f /root/key.pem # Jika ini adalah file yang perlu dihapus setelah instalasi
-rm -f /root/cert.pem # Jika ini adalah file yang perlu dihapus setelah instalasi
+cd /root || exit # Pastikan di direktori root sebelum menghapus file
+rm -f /root/openvpn || true # Jika ini adalah file yang perlu dihapus setelah instalasi
+rm -f /root/key.pem || true # Jika ini adalah file yang perlu dihapus setelah instalasi
+rm -f /root/cert.pem || true # Jika ini adalah file yang perlu dihapus setelah instalasi
 print_success "All Services"
 }
 
@@ -923,105 +923,92 @@ print_success "All Services"
 function menu(){
     clear
     print_install "Memasang Menu Packet"
-    wget "${REPO}Menu/menu.zip" -O /tmp/menu.zip
+    wget "${REPO}Menu/menu.zip" -O /tmp/menu.zip || print_error "Failed to download menu.zip."
     if [ ! -f /tmp/menu.zip ]; then
         print_error "Failed to download menu.zip. Menu will not be installed."
         return 1
     fi
-    unzip -o /tmp/menu.zip -d /tmp/menu_temp # Unzip ke direktori sementara
+    unzip -o /tmp/menu.zip -d /tmp/menu_temp || print_error "Failed to unzip menu.zip." # Unzip ke direktori sementara
     chmod +x /tmp/menu_temp/*
-    mv /tmp/menu_temp/* /usr/local/sbin
-    rm -rf /tmp/menu_temp
-    rm -f /tmp/menu.zip
+    mv /tmp/menu_temp/* /usr/local/sbin/ || print_error "Failed to move menu files."
+    rm -rf /tmp/menu_temp || true
+    rm -f /tmp/menu.zip || true
     print_success "Menu Packet"
 }
 
-# --- Create Default Profile & Cron Jobs (Adjusted) ---
+# --- Create Default Profile & Cron Jobs (Cleaned and Adjusted) ---
 function profile(){
 clear
     cat >/root/.profile <<EOF
 # ~/.profile: executed by Bourne-compatible login shells.
-if [ "<span class="math-inline">BASH" \]; then
-if \[ \-f \~/\.bashrc \]; then
-\. \~/\.bashrc
+if [ "\$BASH" ]; then
+    if [ -f ~/.bashrc ]; then
+        . ~/.bashrc
+    fi
 fi
-fi
-mesg n \|\| true
-menu \# Memastikan 'menu' dijalankan saat login
+mesg n || true
+menu # Memastikan 'menu' dijalankan saat login
 EOF
-mkdir \-p /root/\.info
-curl \-sS "ipinfo\.io/org?token\=7a814b6263b02c" \> /root/\.info/\.isp
-curl \-sS "ipinfo\.io/city?token\=7a814b6263b02c" \> /root/\.info/\.city \# Pindahkan ini ke sini juga
-\# Cron jobs
-\# Pastikan semua script yang dipanggil di cron job ada dan executable di /usr/local/sbin
-cat \>/etc/cron\.d/xp\_all <<\-EOF
-SHELL\=/bin/sh
-PATH\=/usr/local/sbin\:/usr/local/bin\:/sbin\:/bin\:/usr/sbin\:/usr/bin
-2 0 \* \* \* root /usr/local/sbin/xp
-2 0 \* \* \* root /usr/local/sbin/menu \# Apakah ini perlu diulang setiap hari? Mungkin tidak\.
+mkdir -p /root/.info
+curl -sS "ipinfo.io/org?token=7a814b6263b02c" > /root/.info/.isp || true
+curl -sS "ipinfo.io/city?token=7a814b6263b02c" > /root/.info/.city || true # Pindahkan ini ke sini juga
+# Cron jobs
+# Pastikan semua script yang dipanggil di cron job ada dan executable di /usr/local/sbin
+cat >/etc/cron.d/xp_all <<-EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+2 0 * * * root /usr/local/sbin/xp
+# 2 0 * * * root /usr/local/sbin/menu # Apakah ini perlu diulang setiap hari? Mungkin tidak.
 EOF
-cat \>/etc/cron\.d/logclean <<\-EOF
-SHELL\=/bin/sh
-PATH\=/usr/local/sbin\:/usr/local/bin\:/sbin\:/bin\:/usr/sbin\:/usr/bin
-\*/20 \* \* \* \* root /usr/local/sbin/clearlog
+cat >/etc/cron.d/logclean <<-EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+*/20 * * * * root /usr/local/sbin/clearlog
 EOF
-chmod 644 /root/\.profile \# Permission yang lebih aman
-cat \>/etc/cron\.d/daily\_reboot <<\-EOF
-SHELL\=/bin/sh
-PATH\=/usr/local/sbin\:/usr/local/bin\:/sbin\:/bin\:/usr/sbin\:/usr/bin
-0 5 \* \* \* root /sbin/reboot
+chmod 644 /root/.profile # Permission yang lebih aman
+cat >/etc/cron.d/daily_reboot <<-EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+0 5 * * * root /sbin/reboot
 EOF
-cat \>/etc/cron\.d/limit\_ip <<\-EOF
-SHELL\=/bin/sh
-PATH\=/usr/local/sbin\:/usr/local/bin\:/sbin\:/bin\:/usr/sbin\:/usr/bin
-\*/2 \* \* \* \* root /usr/local/sbin/limit\-ip
+cat >/etc/cron.d/limit_ip <<-EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+*/2 * * * * root /usr/local/sbin/limit-ip
 EOF
-cat \>/etc/cron\.d/lim\-ip\-ssh <<\-EOF
-SHELL\=/bin/sh
-PATH\=/usr/local/sbin\:/usr/local/bin\:/sbin\:/bin\:/usr/sbin\:/usr/bin
-\*/1 \* \* \* \* root /usr/local/sbin/limit\-ip\-ssh
+cat >/etc/cron.d/lim-ip-ssh <<-EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+*/1 * * * * root /usr/local/sbin/limit-ip-ssh
 EOF
-cat \>/etc/cron\.d/limit\_ip2 <<\-EOF
-SHELL\=/bin/sh
-PATH\=/usr/local/sbin\:/usr/local/bin\:/sbin\:/bin\:/usr/sbin\:/usr/bin
-\*/2 \* \* \* \* root /usr/bin/limit\-ip \# Duplikat dari limit\_ip? Periksa\.
+cat >/etc/cron.d/limit_ip2 <<-EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+*/2 * * * * root /usr/bin/limit-ip # Duplikat dari limit_ip? Periksa.
 EOF
-echo "\*/1 \* \* \* \* root echo \-n \> /var/log/nginx/access\.log" \>/etc/cron\.d/log\.nginx
-echo "\*/1 \* \* \* \* root echo \-n \> /var/log/xray/access\.log" \>\>/etc/cron\.d/log\.xray
-service cron restart \# Pastikan ini berhasil
-cat \>/home/daily\_reboot <<\-EOF
+echo "*/1 * * * * root echo -n > /var/log/nginx/access.log" >/etc/cron.d/log.nginx
+echo "*/1 * * * * root echo -n > /var/log/xray/access.log" >>/etc/cron.d/log.xray
+service cron restart || true # Pastikan ini berhasil
+cat >/home/daily_reboot <<-EOF
 5
 EOF
-\# rc\-local\.service sudah didefinisikan di fungsi ssh\(\), ini duplikasi\.
-\# cat \>/etc/systemd/system/rc\-local\.service <<EOF
-\# \[Unit\]
-\# Description\=/etc/rc\.local
-\# ConditionPathExists\=/etc/rc\.local
-\# \[Service\]
-\# Type\=forking
-\# ExecStart\=/etc/rc\.local start
-\# TimeoutSec\=0
-\# StandardOutput\=tty
-\# RemainAfterExit\=yes
-\# SysVStartPriority\=99
-\# \[Install\]
-\# WantedBy\=multi\-user\.target
-\# EOF
-echo "/bin/false" \>\>/etc/shells
-echo "/usr/sbin/nologin" \>\>/etc/shells
-\# rc\.local file
-cat \>/etc/rc\.local <<EOF
-\#\!/bin/sh \-e
-\# rc\.local
-\# By default this script does nothing\.
-iptables \-I INPUT \-p udp \-\-dport 5300 \-j ACCEPT
-iptables \-t nat \-I PREROUTING \-p udp \-\-dport 53 \-j REDIRECT \-\-to\-ports 5300
-systemctl restart netfilter\-persistent \# Ini akan dijalankan setiap boot\.
+# rc-local.service sudah didefinisikan di fungsi ssh(), ini duplikasi.
+echo "/bin/false" >>/etc/shells
+echo "/usr/sbin/nologin" >>/etc/shells
+# rc.local file
+cat >/etc/rc.local <<EOF
+#!/bin/sh -e
+# rc.local
+# By default this script does nothing.
+iptables -I INPUT -p udp --dport 5300 -j ACCEPT
+iptables -t nat -I PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300
+systemctl restart netfilter-persistent || true # Ini akan dijalankan setiap boot.
 exit 0
 EOF
-chmod \+x /etc/rc\.local
-\# AUTOREB logic \(No changes needed\)
-AUTOREB\=</span>(cat /home/daily_reboot)
+chmod +x /etc/rc.local
+    
+# AUTOREB logic (No changes needed)
+AUTOREB=$(cat /home/daily_reboot)
     SETT=11
     if [ "$AUTOREB" -gt "$SETT" ]; then
         TIME_DATE="PM"
@@ -1035,20 +1022,20 @@ print_success "Menu Packet & Cron Jobs"
 function enable_services(){
 clear
 print_install "Enable Service"
-    systemctl daemon-reload
-    systemctl start netfilter-persistent
-    systemctl enable --now rc-local
-    systemctl enable --now cron
-    systemctl enable --now netfilter-persistent
-    systemctl restart nginx
-    systemctl restart xray
-    systemctl restart cron
-    systemctl enable --now nginx
-    systemctl enable --now xray
-    systemctl enable --now dropbear
-    systemctl enable --now haproxy # Pastikan haproxy terinstal dan unit filenya ada
-    systemctl enable --now ws
-    systemctl enable --now fail2ban
+    systemctl daemon-reload || true
+    systemctl start netfilter-persistent || true
+    systemctl enable --now rc-local || true
+    systemctl enable --now cron || true
+    systemctl enable --now netfilter-persistent || true
+    systemctl restart nginx || true
+    systemctl restart xray || true
+    systemctl restart cron || true
+    systemctl enable --now nginx || true
+    systemctl enable --now xray || true
+    systemctl enable --now dropbear || true
+    systemctl enable --now haproxy || true # Pastikan haproxy terinstal dan unit filenya ada
+    systemctl enable --now ws || true
+    systemctl enable --now fail2ban || true
     print_success "Enable Service"
     clear
 }
@@ -1087,21 +1074,21 @@ instal
 
 echo ""
 history -c
-rm -f /root/menu # Sudah dihapus di fungsi menu
-rm -f /root/*.zip # Menghapus semua file zip
-rm -f /root/*.sh # Menghapus semua file .sh
-rm -f /root/LICENSE 2>/dev/null
-rm -f /root/README.md 2>/dev/null
-rm -f /root/domain # Sudah dihapus di fungsi pasang_domain
+rm -f /root/menu || true # Sudah dihapus di fungsi menu
+rm -f /root/*.zip || true # Menghapus semua file zip
+rm -f /root/*.sh || true # Menghapus semua file .sh
+rm -f /root/LICENSE 2>/dev/null || true
+rm -f /root/README.md 2>/dev/null || true
+rm -f /root/domain || true # Sudah dihapus di fungsi pasang_domain
 
 # Set hostname
 # username didapatkan dari izinsc, pastikan sudah terdefinisi
 if [ -n "$username" ]; then
-    sudo hostnamectl set-hostname "<span class="math-inline">username"
+    sudo hostnamectl set-hostname "$username" || print_error "Failed to set hostname."
 else
-print\_error "Username not defined, skipping hostname change\."
+    print_error "Username not defined, skipping hostname change."
 fi
-secs\_to\_human "</span>(($(date +%s) - ${start}))"
+secs_to_human "$(($(date +%s) - ${start}))"
 
 echo ""
 echo "------------------------------------------------------------"
@@ -1114,10 +1101,10 @@ echo "    - Stunnel5            : 222, 777" | tee -a log-install.txt
 echo "    - Dropbear            : 109, 143" | tee -a log-install.txt
 echo "    - Badvpn              : 7100-7300" | tee -a log-install.txt
 echo "    - Nginx               : 81" | tee -a log-install.txt
-echo "    - XRAY  Vmess TLS     : 443" | tee -a log-install.txt
-echo "    - XRAY  Vmess None TLS: 80" | tee -a log-install.txt
-echo "    - XRAY  Vless TLS     : 443" | tee -a log-install.txt
-echo "    - XRAY  Vless None TLS: 80" | tee -a log-install.txt
+echo "    - XRAY Vmess TLS      : 443" | tee -a log-install.txt
+echo "    - XRAY Vmess None TLS : 80" | tee -a log-install.txt
+echo "    - XRAY Vless TLS      : 443" | tee -a log-install.txt
+echo "    - XRAY Vless None TLS : 80" | tee -a log-install.txt
 echo "    - Trojan GRPC         : 443" | tee -a log-install.txt
 echo "    - Trojan WS           : 443" | tee -a log-install.txt
 echo "    - Trojan GO           : 443" | tee -a log-install.txt
