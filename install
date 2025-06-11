@@ -4,7 +4,7 @@
 # Main Installer Script (Calls other modules)
 # ===============================================
 
-# --- Global Variables for All Scripts ---
+# --- Global Variables ---
 XRAY_BIN_PATH="/usr/local/bin/xray"
 XRAY_CONFIG_DIR="/etc/xray"
 XRAY_LOG_DIR="/var/log/xray"
@@ -121,11 +121,19 @@ fi
 FULL_DOMAIN="$SUBDOMAIN.$BASE_DOMAIN"
 
 print_status "${RED}IMPORTANT: Your domain's A record for '$FULL_DOMAIN' will be set by acme.sh to '$MY_PUBLIC_IP' via Cloudflare DNS API. Ensure your base domain '$BASE_DOMAIN' is managed by Cloudflare.${NC}"
-print_status "${RED}You MUST have provided your Cloudflare API Key and Admin Email correctly inside this script: 'CLOUDFLARE_API_KEY' and 'ADMIN_EMAIL' variables.${NC}"
+print_status "${RED}Your Cloudflare API Key and Admin Email are pre-filled in this script.${NC}"
 read -p "Press Enter to continue..."
 
 # Store full domain for menu script
 echo "$FULL_DOMAIN" | sudo tee "$XRAY_CONFIG_DIR/domain.txt" &>/dev/null
+
+# Store Cloudflare API credentials securely for menu script
+sudo mkdir -p "$XRAY_CONFIG_DIR"
+sudo tee "$XRAY_CONFIG_DIR/cf_api.conf" >/dev/null <<EOF_CF_API
+CLOUDFLARE_API_KEY="$CLOUDFLARE_API_KEY"
+ADMIN_EMAIL="$ADMIN_EMAIL"
+EOF_CF_API
+sudo chmod 600 "$XRAY_CONFIG_DIR/cf_api.conf" # Restrict permissions
 
 install_prerequisites
 cleanup_old_installations
@@ -143,7 +151,7 @@ DEFAULT_UUID_INSTALL=$(jq -r '.inbounds[] | select(.port == 443) | .settings.cli
 
 # Execute Menu Script Installer
 if [ ! -f "$MENU_SCRIPT_INSTALLER_SCRIPT" ]; then print_error "Menu Script Installer script not found: $MENU_SCRIPT_INSTALLER_SCRIPT"; fi
-sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$CLOUDFLARE_API_KEY" "$ADMIN_EMAIL" "$XRAY_CONFIG_DIR/domain.txt" || print_error "Menu Script Installation failed."
+sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" || print_error "Menu Script Installation failed."
 
 start_and_verify_xray_service
 
