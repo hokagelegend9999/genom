@@ -3,10 +3,6 @@
 # ===============================================
 # XRAY Installation & Configuration Script (FINAL)
 # (VLESS over WebSocket with TLS on Port 443)
-# = Dynamic IP, No UFW, Automatic Menu Call
-# = SSL via DNS-01 Challenge (Cloudflare)
-# = Pre-filled Cloudflare Key & Email
-# = User selects SUBDOMAIN or Auto-generates
 # ===============================================
 
 # --- Global Variables ---
@@ -17,19 +13,17 @@ XRAY_TLS_DIR="/etc/xray/tls"
 XRAY_SERVICE_FILE="/etc/systemd/system/xray.service"
 MENU_SCRIPT_PATH="/usr/local/bin/xray_menu"
 
-# Your pre-filled Cloudflare credentials
-BASE_DOMAIN="hokagelegend.web.id" # Your BASE DOMAIN
-CLOUDFLARE_API_KEY="ab8d0901acb186291e58f21359d07e7b847dc" # Your Cloudflare API Key
-ADMIN_EMAIL="faridaumiabi@gmail.com" # Your Admin Email
+BASE_DOMAIN="hokagelegend.web.id"
+CLOUDFLARE_API_KEY="ab8d0901acb186291e58f21359d07e7b847dc"
+ADMIN_EMAIL="faridaumiabi@gmail.com"
+TELEGRAM_BOT_TOKEN="7219522943:AAFZGZIbRU-CodrmgGJRuyXCV55sJDOSrSg"
+TELEGRAM_CHAT_ID="1469244768"
 
-# Telegram Bot Credentials (USER MUST FILL THESE)
-TELEGRAM_BOT_TOKEN="7219522943:AAFZGZIbRU-CodrmgGJRuyXCV55sJDOSrSg" # <<< ISI DENGAN BOT TOKEN ANDA
-TELEGRAM_CHAT_ID="1469244768"   # <<< ISI DENGAN CHAT ID ANDA
+MY_PUBLIC_IP=""
+SUBDOMAIN=""
+FULL_DOMAIN=""
 
-MY_PUBLIC_IP="" # Will be detected automatically
-SUBDOMAIN=""    # User's choice or auto-generated
-FULL_DOMAIN=""  # Will be constructed from subdomain
-# ---------- 1) Unduh helper scripts (jalankan hanya bila file belum ada) ----------
+# --- Download Scripts ---
 download_script () {
   local url="$1" outfile="$2"
   if [[ ! -f "$outfile" ]]; then
@@ -43,18 +37,16 @@ download_script "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/x
 download_script "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/cloudflare" cloudflare
 download_script "https://github.com/hokagelegend9999/genom/raw/refs/heads/main/menu" menu
 
-# ---------- 2) Script Paths (HANYA penetapan variabel) ----------
 XRAY_CORE_INSTALLER_SCRIPT="./xray"
 CLOUDFLARE_SSL_CONFIGURER_SCRIPT="./cloudflare"
-MENU_SCRIPT="./menu"            # jika memang ada bagian lain yang memakai "menu"
+MENU_SCRIPT_INSTALLER_SCRIPT="./menu"
 
-# --- Colors for Output ---
-RED='\033[0m\033[1;31m' # Bold Red
-GREEN='\033[0m\033[1;32m' # Bold Green
-YELLOW='\033[0m\033[1;33m' # Bold Yellow
-NC='\033[0m' # No Color
+# --- Colors ---
+RED='\033[0m\033[1;31m'
+GREEN='\033[0m\033[1;32m'
+YELLOW='\033[0m\033[1;33m'
+NC='\033[0m'
 
-# --- Helper Functions (for this main script) ---
 print_header() {
     echo -e "${GREEN}=====================================================${NC}"
     echo -e "${GREEN}       XRAY MODULAR INSTALLER START                ${NC}"
@@ -67,7 +59,7 @@ print_status() {
 
 print_error() {
     echo -e "${RED}!!! ERROR: $1${NC}" >&2
-    exit 1 # Exit on critical errors
+    exit 1
 }
 
 send_telegram_notification() {
@@ -82,149 +74,115 @@ send_telegram_notification() {
     fi
 }
 
-# --- Installation Steps ---
-
 install_prerequisites() {
-    print_status "Installing prerequisites (curl, wget, unzip, socat, uuid-runtime, jq)..."
-    sudo apt update || print_error "Failed to update apt. Please check your internet connection or apt sources."
+    print_status "Installing prerequisites..."
+    sudo apt update || print_error "Failed to update apt."
     sudo apt install -y curl wget unzip socat uuid-runtime jq || print_error "Failed to install prerequisites."
 }
 
+install_acme_sh() {
+    print_status "Installing acme.sh..."
+    if ! command -v acme.sh &>/dev/null; then
+        curl https://get.acme.sh | sh || print_error "Failed to install acme.sh"
+        export PATH="$HOME/.acme.sh:$PATH"
+        source ~/.bashrc 2>/dev/null || true
+    else
+        print_status "acme.sh already installed."
+    fi
+}
+
 cleanup_old_installations() {
-    print_status "Cleaning up old XRAY, HAProxy, Nginx, OpenVPN, NoobzVpn installations and ensuring ports are free..."
+    print_status "Cleaning up old installations..."
     sudo systemctl stop xray.service &>/dev/null || true
     sudo systemctl disable xray.service &>/dev/null || true
-    sudo rm -f "$XRAY_SERVICE_FILE" &>/dev/null
-    sudo rm -f "$XRAY_BIN_PATH" &>/dev/null
-    sudo rm -rf "$XRAY_CONFIG_DIR" &>/dev/null
-    sudo rm -rf "$XRAY_LOG_DIR" &>/dev/null
+    sudo rm -f "$XRAY_SERVICE_FILE" "$XRAY_BIN_PATH"
+    sudo rm -rf "$XRAY_CONFIG_DIR" "$XRAY_LOG_DIR"
+    sudo systemctl stop haproxy nginx openvpn-server@server-tcp openvpn-server@server-udp noobzvpns.service &>/dev/null || true
+    sudo systemctl disable haproxy nginx openvpn-server@server-tcp openvpn-server@server-udp noobzvpns.service &>/dev/null || true
 
-    sudo systemctl stop haproxy &>/dev/null || true
-    sudo systemctl disable haproxy &>/dev/null || true
-    sudo systemctl stop nginx &>/dev/null || true 
-    sudo systemctl disable nginx &>/dev/null || true
-    sudo systemctl stop openvpn-server@server-tcp &>/dev/null || true
-    sudo systemctl stop openvpn-server@server-udp &>/dev/null || true
-    sudo systemctl disable openvpn-server@server-tcp &>/dev/null || true
-    sudo systemctl disable openvpn-server@server-udp &>/dev/null || true
-    sudo systemctl stop noobzvpns.service &>/dev/null || true
-    sudo systemctl disable noobzvpns.service &>/dev/null || true
-
-    print_status "${RED}WARNING: No OS-level firewall (like UFW) is being configured. Ensure your VPS/Cloud provider's firewall rules (Security Group) are set up correctly for ports 80, 443, and 22!${NC}"
-    
     print_status "Verifying ports 80 and 443 are free..."
-    sleep 2 # Give services a moment to stop
+    sleep 2
     if sudo ss -tulpn | grep -E ':(80|443)'; then
-        print_error "Ports 80 or 443 are still in use. Please manually stop conflicting services and re-run."
+        print_error "Ports 80 or 443 are still in use."
     fi
 }
 
 start_and_verify_xray_service() {
     print_status "Starting XRAY service..."
-    # XRAY needs TLS certs and config.json to be generated first by Cloudflare SSL configurer
-    sudo systemctl start xray.service || print_error "Failed to start XRAY service. Check logs: 'sudo journalctl -u xray --no-pager'"
-    sleep 5 # Give XRAY a moment to start
+    sudo systemctl start xray.service || print_error "Failed to start XRAY service."
+    sleep 5
+    sudo systemctl is-active --quiet xray.service || print_error "XRAY service not running."
 
-    print_status "Verifying XRAY status..."
-    if sudo systemctl is-active --quiet xray.service; then
-        echo -e "${GREEN}XRAY service is active (running)!${NC}"
-    else
-        print_error "XRAY service failed to start. Check logs: 'sudo journalctl -u xray --no-pager'"
-    fi
-
-    print_status "Verifying XRAY listening on port 443..."
-    if sudo ss -tulpn | grep -E ':(443)' | grep "xray"; then
-        echo -e "${GREEN}XRAY is listening on port 443!${NC}"
-    else
-        print_error "XRAY is NOT listening on port 443. Check your VPS/Cloud provider's firewall (Security Group/Network ACL) or XRAY logs."
-    fi
+    print_status "Verifying XRAY is listening on port 443..."
+    sudo ss -tulpn | grep -E ':(443)' | grep "xray" || print_error "XRAY is NOT listening on port 443."
 }
 
-# --- Main Script Execution ---
+# --- MAIN EXECUTION ---
 clear
 print_header
 
 MY_PUBLIC_IP=$(curl -sS ifconfig.me)
-if [ -z "$MY_PUBLIC_IP" ]; then
-    print_error "Failed to detect public IP address. Check internet connection."
-fi
+[ -z "$MY_PUBLIC_IP" ] && print_error "Failed to detect public IP."
 echo -e "${YELLOW}Detected Public IP: $MY_PUBLIC_IP${NC}"
 
-# --- Subdomain Choice (THIS IS THE CORRECTED PART) ---
+# Subdomain selection
 echo -e "\n${YELLOW}Choose your subdomain option:${NC}"
-echo -e "  1. Use my own custom subdomain (e.g., myvpn)"
-echo -e "  2. Auto-generate a random subdomain"
+echo -e "  1. Custom subdomain"
+echo -e "  2. Auto-generate"
 read -p "Enter your choice (1 or 2): " SUBDOMAIN_CHOICE
 
 if [ "$SUBDOMAIN_CHOICE" == "1" ]; then
-    read -p "Enter your custom SUBDOMAIN (e.g., test, myvpn): " SUBDOMAIN_INPUT
-    if [ -z "$SUBDOMAIN_INPUT" ]; then
-        print_error "Subdomain cannot be empty. Exiting."
-    fi
-    SUBDOMAIN="$SUBDOMAIN_INPUT"
+    read -p "Enter your custom SUBDOMAIN: " SUBDOMAIN
+    [ -z "$SUBDOMAIN" ] && print_error "Subdomain cannot be empty."
 elif [ "$SUBDOMAIN_CHOICE" == "2" ]; then
     SUBDOMAIN=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8 | tr '[:upper:]' '[:lower:]')
     echo -e "${GREEN}Auto-generated Subdomain: ${YELLOW}$SUBDOMAIN${NC}"
-    sleep 2
 else
-    print_error "Invalid choice. Exiting."
+    print_error "Invalid choice."
 fi
 
 FULL_DOMAIN="$SUBDOMAIN.$BASE_DOMAIN"
-
-print_status "${RED}IMPORTANT: Your domain's A record for '$FULL_DOMAIN' will be set by acme.sh to '$MY_PUBLIC_IP' via Cloudflare DNS API. Ensure your base domain '$BASE_DOMAIN' is managed by Cloudflare.${NC}"
-print_status "${RED}Your Cloudflare API Key and Admin Email are pre-filled in this script. Please ensure they are correct.${NC}"
+echo -e "Domain: $FULL_DOMAIN"
 read -p "Press Enter to continue..."
 
-# Store full domain for menu script
+sudo mkdir -p "$XRAY_CONFIG_DIR"
 echo "$FULL_DOMAIN" | sudo tee "$XRAY_CONFIG_DIR/domain.txt" &>/dev/null
 
-# Store Cloudflare API credentials securely for menu script (for change_domain in menu)
-sudo mkdir -p "$XRAY_CONFIG_DIR"
-sudo tee "$XRAY_CONFIG_DIR/cf_api.conf" >/dev/null <<EOF_CF_API
+sudo tee "$XRAY_CONFIG_DIR/cf_api.conf" >/dev/null <<EOF
 CLOUDFLARE_API_KEY="$CLOUDFLARE_API_KEY"
 ADMIN_EMAIL="$ADMIN_EMAIL"
-EOF_CF_API
-sudo chmod 600 "$XRAY_CONFIG_DIR/cf_api.conf" # Restrict permissions
+EOF
+sudo chmod 600 "$XRAY_CONFIG_DIR/cf_api.conf"
 
 install_prerequisites
+install_acme_sh
 cleanup_old_installations
 
-# --- Call separate installer scripts ---
-# Execute XRAY Core Installer
-if [ ! -f "$XRAY_CORE_INSTALLER_SCRIPT" ]; then print_error "XRAY Core Installer script not found: $XRAY_CORE_INSTALLER_SCRIPT"; fi
-sudo bash "$XRAY_CORE_INSTALLER_SCRIPT" "$XRAY_BIN_PATH" "$XRAY_CONFIG_DIR" "$XRAY_LOG_DIR" "$XRAY_SERVICE_FILE" "$FULL_DOMAIN" "$XRAY_TLS_DIR" || print_error "XRAY Core Installation failed." # Pass FULL_DOMAIN and XRAY_TLS_DIR for initial config.json
+[ ! -f "$XRAY_CORE_INSTALLER_SCRIPT" ] && print_error "XRAY script not found."
+sudo bash "$XRAY_CORE_INSTALLER_SCRIPT" "$XRAY_BIN_PATH" "$XRAY_CONFIG_DIR" "$XRAY_LOG_DIR" "$XRAY_SERVICE_FILE" "$FULL_DOMAIN" "$XRAY_TLS_DIR" || print_error "XRAY Core Installation failed."
 
-# Execute Cloudflare SSL Configurer (which updates config.json)
-if [ ! -f "$CLOUDFLARE_SSL_CONFIGURER_SCRIPT" ]; then print_error "Cloudflare SSL Configurer script not found: $CLOUDFLARE_SSL_CONFIGURER_SCRIPT"; fi
+[ ! -f "$CLOUDFLARE_SSL_CONFIGURER_SCRIPT" ] && print_error "Cloudflare SSL script not found."
 sudo bash "$CLOUDFLARE_SSL_CONFIGURER_SCRIPT" \
     "$XRAY_CONFIG_DIR" "$XRAY_TLS_DIR" "$ADMIN_EMAIL" "$CLOUDFLARE_API_KEY" "$FULL_DOMAIN" "$XRAY_BIN_PATH" "$XRAY_LOG_DIR" "$MY_PUBLIC_IP" || print_error "Cloudflare SSL Configuration failed."
+
 DEFAULT_UUID_INSTALL=$(jq -r '.inbounds[] | select(.port == 443) | .settings.clients[0].id' "$XRAY_CONFIG_DIR/config.json")
 
-# Execute Menu Script Installer
-if [ ! -f "$MENU_SCRIPT_INSTALLER_SCRIPT" ]; then print_error "Menu Script Installer script not found: $MENU_SCRIPT_INSTALLER_SCRIPT"; fi
-sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$XRAY_CONFIG_DIR/cf_api.conf" || print_error "Menu Script Installation failed."
+[ ! -f "$MENU_SCRIPT_INSTALLER_SCRIPT" ] && print_error "Menu script not found."
+sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$XRAY_CONFIG_DIR/cf_api.conf" || print_error "Menu Installation failed."
 
 start_and_verify_xray_service
 
 print_header
-echo -e "${GREEN}XRAY Installation Complete!${NC}"
-echo -e "Your primary VLESS UUID is: ${YELLOW}$DEFAULT_UUID_INSTALL${NC}"
-echo -e "To manage XRAY users and settings, simply type: ${YELLOW}sudo menu${NC}"
-echo -e "\n${YELLOW}Remember to configure your client with these details:${NC}"
-echo -e "  Protocol: VLESS"
-echo -e "  Address: ${YELLOW}$FULL_DOMAIN${NC}"
-echo -e "  Port: 443"
-echo -e "  UUID: ${YELLOW}$DEFAULT_UUID_INSTALL${NC}"
-echo -e "  Security: TLS"
-echo -e "  SNI: ${YELLOW}$FULL_DOMAIN${NC}"
-echo -e "  Network: ws"
-echo -e "  Path: /vlessws"
-echo -e "  Flow: (empty/default)"
-echo -e "\n${RED}IMPORTANT: Ensure your VPS/Cloud provider's firewall allows incoming connections on ports 80, 443, and 22!${NC}"
+echo -e "XRAY Installation Complete!"
+echo -e "Domain: ${YELLOW}$FULL_DOMAIN${NC}"
+echo -e "UUID: ${YELLOW}$DEFAULT_UUID_INSTALL${NC}"
+echo -e "Run ${YELLOW}sudo menu${NC} to manage users."
+
+echo -e "Client Config:\nProtocol: VLESS\nPort: 443\nAddress: $FULL_DOMAIN\nUUID: $DEFAULT_UUID_INSTALL\nPath: /vlessws\nSecurity: TLS\nNetwork: ws"
+
 echo -e "${GREEN}=====================================================${NC}"
 
-# --- Send Telegram Notification ---
+# --- Telegram Notification ---
 VPS_INFO=$(lsb_release -ds)
 ARCH=$(uname -m)
 HOSTNAME=$(hostname)
@@ -232,31 +190,11 @@ CPU_CORES=$(nproc)
 MEM_TOTAL=$(free -h | awk '/^Mem:/ {print $2}')
 DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
 CURRENT_DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
-
-# Try to detect AWS/Lightsail region
 VPS_REGION="Unknown"
+
 if curl -s http://169.254.169.254/latest/dynamic/instance-identity/document &>/dev/null; then
-    VPS_REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '\"region\"\s*:\s*\"\K[^\"]+')
+    VPS_REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '"region"\s*:\s*"\K[^"]+')
 fi
 
-TELEGRAM_MESSAGE="*XRAY VPS Installation Success!*
----------------------------------------
-*Domain:* \`$FULL_DOMAIN\`
-*IP Address:* \`$MY_PUBLIC_IP\`
-*UUID:* \`$DEFAULT_UUID_INSTALL\`
-*Path:* \`/vlessws\`
-*Protocol:* \`VLESS/WS/TLS\`
----------------------------------------
-*VPS Info:*
-  * OS: \`$VPS_INFO\`
-  * Architecture: \`$ARCH\`
-  * Hostname: \`$HOSTNAME\`
-  * CPU Cores: \`$CPU_CORES\`
-  * Total RAM: \`$MEM_TOTAL\`
-  * Disk Usage: \`$DISK_USAGE\`
-  * Region: \`$VPS_REGION\`
-  * Date: \`$CURRENT_DATE\`
----------------------------------------
-*Management:* Run \`sudo menu\` on VPS.
-"
+TELEGRAM_MESSAGE="*XRAY VPS Installation Success!*\n\n*Domain:* \`$FULL_DOMAIN\`\n*IP:* \`$MY_PUBLIC_IP\`\n*UUID:* \`$DEFAULT_UUID_INSTALL\`\n*Protocol:* \`VLESS/WS/TLS\`\n\n*VPS Info:*\n OS: \`$VPS_INFO\`\n Arch: \`$ARCH\`\n Hostname: \`$HOSTNAME\`\n CPU: \`$CPU_CORES\`\n RAM: \`$MEM_TOTAL\`\n Disk: \`$DISK_USAGE\`\n Region: \`$VPS_REGION\`\n Date: \`$CURRENT_DATE\`\n\n*Manage:* Run \`sudo menu\` on VPS."
 send_telegram_notification "$TELEGRAM_MESSAGE"
