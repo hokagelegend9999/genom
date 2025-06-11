@@ -1,7 +1,12 @@
 #!/bin/bash
 
 # ===============================================
-# Main Installer Script (Calls other modules)
+# XRAY Installation & Configuration Script (FINAL)
+# (VLESS over WebSocket with TLS on Port 443)
+# = Dynamic IP, No UFW, Automatic Menu Call
+# = SSL via DNS-01 Challenge (Cloudflare)
+# = Pre-filled Cloudflare Key & Email
+# = User selects SUBDOMAIN or Auto-generates
 # ===============================================
 
 # --- Global Variables ---
@@ -18,6 +23,7 @@ CLOUDFLARE_API_KEY="ab8d0901acb186291e58f21359d07e7b847dc" # Your Cloudflare API
 ADMIN_EMAIL="faridaumiabi@gmail.com" # Your Admin Email
 
 MY_PUBLIC_IP="" # Will be detected automatically
+SUBDOMAIN=""    # User's choice or auto-generated
 FULL_DOMAIN=""  # Will be constructed from subdomain
 
 # --- Script Paths (Must be in the same directory as main_installer.sh) ---
@@ -115,14 +121,30 @@ if [ -z "$MY_PUBLIC_IP" ]; then
 fi
 echo -e "${YELLOW}Detected Public IP: $MY_PUBLIC_IP${NC}"
 
-read -p "Enter your SUBDOMAIN (e.g., test, myvpn): " SUBDOMAIN
-if [ -z "$SUBDOMAIN" ]; then
-    print_error "Subdomain cannot be empty. Exiting."
+# --- Subdomain Choice ---
+echo -e "\n${YELLOW}Choose your subdomain option:${NC}"
+echo -e "  1. Use my own custom subdomain (e.g., myvpn)"
+echo -e "  2. Auto-generate a random subdomain"
+read -p "Enter your choice (1 or 2): " SUBDOMAIN_CHOICE
+
+if [ "$SUBDOMAIN_CHOICE" == "1" ]; then
+    read -p "Enter your custom SUBDOMAIN (e.g., test, myvpn): " SUBDOMAIN_INPUT
+    if [ -z "$SUBDOMAIN_INPUT" ]; then
+        print_error "Subdomain cannot be empty. Exiting."
+    fi
+    SUBDOMAIN="$SUBDOMAIN_INPUT"
+elif [ "$SUBDOMAIN_CHOICE" == "2" ]; then
+    SUBDOMAIN=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8 | tr '[:upper:]' '[:lower:]')
+    echo -e "${GREEN}Auto-generated Subdomain: ${YELLOW}$SUBDOMAIN${NC}"
+    sleep 2
+else
+    print_error "Invalid choice. Exiting."
 fi
+
 FULL_DOMAIN="$SUBDOMAIN.$BASE_DOMAIN"
 
 print_status "${RED}IMPORTANT: Your domain's A record for '$FULL_DOMAIN' will be set by acme.sh to '$MY_PUBLIC_IP' via Cloudflare DNS API. Ensure your base domain '$BASE_DOMAIN' is managed by Cloudflare.${NC}"
-print_status "${RED}Your Cloudflare API Key and Admin Email are pre-filled in this script.${NC}"
+print_status "${RED}Your Cloudflare API Key and Admin Email are pre-filled in this script. Please ensure they are correct.${NC}"
 read -p "Press Enter to continue..."
 
 # Store full domain for menu script
@@ -152,7 +174,7 @@ DEFAULT_UUID_INSTALL=$(jq -r '.inbounds[] | select(.port == 443) | .settings.cli
 
 # Execute Menu Script Installer
 if [ ! -f "$MENU_SCRIPT_INSTALLER_SCRIPT" ]; then print_error "Menu Script Installer script not found: $MENU_SCRIPT_INSTALLER_SCRIPT"; fi
-sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$XRAY_CONFIG_DIR" || print_error "Menu Script Installation failed."
+sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$XRAY_CONFIG_DIR/cf_api.conf" || print_error "Menu Script Installation failed."
 
 start_and_verify_xray_service
 
@@ -172,3 +194,40 @@ echo -e "  Path: /vlessws"
 echo -e "  Flow: (empty/default)"
 echo -e "\n${RED}IMPORTANT: Ensure your VPS/Cloud provider's firewall allows incoming connections on ports 80, 443, and 22!${NC}"
 echo -e "${GREEN}=====================================================${NC}"
+
+# --- Send Telegram Notification ---
+VPS_INFO=$(lsb_release -ds)
+ARCH=$(uname -m)
+HOSTNAME=$(hostname)
+CPU_CORES=$(nproc)
+MEM_TOTAL=$(free -h | awk '/^Mem:/ {print $2}')
+DISK_USAGE=$(df -h / | awk 'NR==2 {print $5}')
+CURRENT_DATE=$(date +"%Y-%m-%d %H:%M:%S %Z")
+
+# Try to detect AWS/Lightsail region
+VPS_REGION="Unknown"
+if curl -s http://169.254.169.254/latest/dynamic/instance-identity/document &>/dev/null; then
+    VPS_REGION=$(curl -s http://169.254.169.254/latest/dynamic/instance-identity/document | grep -oP '\"region\"\s*:\s*\"\K[^\"]+')
+fi
+
+TELEGRAM_MESSAGE="*XRAY VPS Installation Success!*
+---------------------------------------
+*Domain:* \`$FULL_DOMAIN\`
+*IP Address:* \`$MY_PUBLIC_IP\`
+*UUID:* \`$DEFAULT_UUID_INSTALL\`
+*Path:* \`/vlessws\`
+*Protocol:* \`VLESS/WS/TLS\`
+---------------------------------------
+*VPS Info:*
+  * OS: \`$VPS_INFO\`
+  * Architecture: \`$ARCH\`
+  * Hostname: \`$HOSTNAME\`
+  * CPU Cores: \`$CPU_CORES\`
+  * Total RAM: \`$MEM_TOTAL\`
+  * Disk Usage: \`$DISK_USAGE\`
+  * Region: \`$VPS_REGION\`
+  * Date: \`$CURRENT_DATE\`
+---------------------------------------
+*Management:* Run \`sudo menu\` on VPS.
+"
+send_telegram_notification "$TELEGRAM_MESSAGE"
