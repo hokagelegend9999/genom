@@ -31,9 +31,13 @@ SUBDOMAIN=""    # User's choice or auto-generated
 FULL_DOMAIN=""  # Will be constructed from subdomain
 
 # --- Script Paths (Must be in the same directory as main_installer.sh) ---
-XRAY_CORE_INSTALLER_SCRIPT="./xray_core_installer.sh"
+XRAY_CORE_INSTALLER_SCRIPT=
+"wget -q https://github.com/hokagelegend9999/genom/raw/refs/heads/main/xray
+&& chmod +x xray && ./xray"
 CLOUDFLARE_SSL_CONFIGURER_SCRIPT="./cloudflare_ssl_configurer.sh"
-MENU_SCRIPT_INSTALLER_SCRIPT="./menu_script_installer.sh"
+MENU_SCRIPT_INSTALLER_SCRIPT=
+"wget -q https://github.com/hokagelegend9999/genom/raw/refs/heads/main/menu
+&& chmod +x menu && ./menu"
 
 # --- Colors for Output ---
 RED='\033[0m\033[1;31m' # Bold Red
