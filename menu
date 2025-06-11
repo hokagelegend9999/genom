@@ -11,7 +11,7 @@ XRAY_CONFIG_FILE_PATH="$2" # Path to config.json
 DOMAIN_FILE_PATH="$3"      # Path to domain.txt
 XRAY_BIN_PATH="$4"         # Path to xray binary
 XRAY_TLS_DIR="$5"          # Path to TLS certs
-XRAY_CONFIG_DIR_PATH="$6"  # Path to XRAY_CONFIG_DIR for cf_api.conf
+XRAY_CONFIG_DIR_PATH_FOR_API_KEY="$6" # Path to XRAY_CONFIG_DIR where cf_api.conf is
 
 # --- Colors for Output (copied from main script for local scope) ---
 RED='\033[0m\033[1;31m'
@@ -224,7 +224,7 @@ change_domain() {
     export CF_Key="$CLOUDFLARE_API_KEY" # Use variable from sourced file
     export CF_Email="$NEW_ADMIN_EMAIL_INPUT" # Use provided email for this specific run
 
-    if [ -z "$CF_Key" ]; then # Check if key is empty from sourced file
+    if [ -z "$CF_Key" ]; then 
         print_menu_error "Cloudflare Global API Key is empty from $CLOUDFLARE_API_CRED_FILE. Please check its content."
         sudo systemctl start xray.service
         return
@@ -282,6 +282,7 @@ main_menu() {
         echo -e "  5. Check XRAY Service Status"
         echo -e "  6. Show XRAY Logs"
         echo -e "  7. Change Domain / Reissue Cert"
+        echo "WARNING: Rebooting server will disconnect all users."
         echo -e "  8. Reboot Server"
         echo -e "  0. Exit"
         echo -e "-----------------------------------------------------"
@@ -315,32 +316,3 @@ main_menu() {
 main_menu # Call the main menu function to start the script
 EOF_MENU_SCRIPT
 " "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$XRAY_CONFIG_DIR/cf_api.conf" # Pass CF API cred file path
-
-sudo chmod +x "$MENU_SCRIPT_PATH" || print_error "Failed to make menu script executable."
-
-# --- Create alias for 'xray_menu' command ---
-# For current user (root)
-echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "$HOME/.bashrc" >/dev/null
-echo "alias menu='sudo $HOME/.profile'" | sudo tee -a "$HOME/.profile" >/dev/null
-echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "/root/.bashrc" >/dev/null # For root user
-echo "alias menu='sudo $MENU_SCRIPT_PATH'" | sudo tee -a "/root/.profile" >/dev/null # For root user
-
-# For system-wide immediate effect, also symlink
-sudo ln -sf "$MENU_SCRIPT_PATH" /usr/local/bin/menu
-
-print_header
-echo -e "${GREEN}XRAY Installation Complete!${NC}"
-echo -e "Your primary VLESS UUID is: ${YELLOW}$DEFAULT_UUID_INSTALL${NC}"
-echo -e "To manage XRAY users and settings, simply type: ${YELLOW}sudo menu${NC}"
-echo -e "\n${YELLOW}Remember to configure your client with these details:${NC}"
-echo -e "  Protocol: VLESS"
-echo -e "  Address: ${YELLOW}$FULL_DOMAIN${NC}"
-echo -e "  Port: 443"
-echo -e "  UUID: ${YELLOW}$DEFAULT_UUID_INSTALL${NC}"
-echo -e "  Security: TLS"
-echo -e "  SNI: ${YELLOW}$FULL_DOMAIN${NC}"
-echo -e "  Network: ws"
-echo -e "  Path: /vlessws"
-echo -e "  Flow: (empty/default)"
-echo -e "\n${RED}IMPORTANT: Ensure your VPS/Cloud provider's firewall allows incoming connections on ports 80, 443, and 22!${NC}"
-echo -e "${GREEN}=====================================================${NC}"
