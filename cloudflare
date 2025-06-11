@@ -12,7 +12,7 @@ ADMIN_EMAIL="$3"
 CLOUDFLARE_API_KEY="$4"
 FULL_DOMAIN="$5"
 XRAY_BIN_PATH="$6" # Used for config test
-XRAY_LOG_DIR="$7" # Used for config file generation
+XRAY_LOG_DIR="$7" # Not directly used here, but for consistency if needed
 MY_PUBLIC_IP="$8" # Used for acme.sh DNS update
 
 # --- Colors for Output (copied from main script for local scope) ---
