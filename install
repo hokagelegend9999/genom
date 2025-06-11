@@ -840,18 +840,36 @@ print_success "Fail2ban & DDOS Flate"
 function ins_epro(){
 clear
 print_install "Menginstall ePro WebSocket Proxy"
-    wget -O /usr/bin/ws "${REPO}Data/ws" >/dev/null 2>&1 || print_error "Failed to download ws binary."
-wget -O /usr/bin/tun.conf "${REPO}Data/tun.conf" >/dev/null 2>&1 || print_error "Failed to download tun.conf."
-    wget -O /etc/systemd/system/ws.service "${REPO}Data/ws.service" >/dev/null 2>&1 || print_error "Failed to download ws.service."
-chmod +x /etc/systemd/system/ws.service
-chmod +x /usr/bin/ws
-chmod 644 /usr/bin/tun.conf
-systemctl disable ws.service || true
-systemctl stop ws.service || true
-systemctl enable ws.service || true
-systemctl start ws.service || true
-systemctl restart ws.service || true
-
+    wget -O /usr/bin/ws "${REPO}files/ws" >/dev/null 2>&1
+    wget -O /usr/bin/tun.conf "${REPO}Data/tun.conf" >/dev/null 2>&1
+    wget -O /etc/systemd/system/ws.service "${REPO}Data/ws.service" >/dev/null 2>&1
+    chmod +x /etc/systemd/system/ws.service
+    chmod +x /usr/bin/ws
+    chmod 644 /usr/bin/tun.conf
+systemctl disable ws
+systemctl stop ws
+systemctl enable ws
+systemctl start ws
+systemctl restart ws
+wget -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" >/dev/null 2>&1
+wget -q -O /usr/local/share/xray/geoip.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" >/dev/null 2>&1
+wget -O /usr/sbin/ftvpn "${REPO}files/ftvpn" >/dev/null 2>&1
+chmod +x /usr/sbin/ftvpn
+iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP
+iptables -A FORWARD -m string --string "announce_peer" --algo bm -j DROP
+iptables -A FORWARD -m string --string "find_node" --algo bm -j DROP
+iptables -A FORWARD -m string --algo bm --string "BitTorrent" -j DROP
+iptables -A FORWARD -m string --algo bm --string "BitTorrent protocol" -j DROP
+iptables -A FORWARD -m string --algo bm --string "peer_id=" -j DROP
+iptables -A FORWARD -m string --algo bm --string ".torrent" -j DROP
+iptables -A FORWARD -m string --algo bm --string "announce.php?passkey=" -j DROP
+iptables -A FORWARD -m string --algo bm --string "torrent" -j DROP
+iptables -A FORWARD -m string --algo bm --string "announce" -j DROP
+iptables -A FORWARD -m string --algo bm --string "info_hash" -j DROP
+iptables-save > /etc/iptables.up.rules
+iptables-restore -t < /etc/iptables.up.rules
+netfilter-persistent save
+netfilter-persistent reload
 # Mengunduh geosite.dat dan geoip.dat
 # Pastikan ini adalah link terbaru dan valid
 wget -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" >/dev/null 2>&1 || print_error "Failed to download geosite.dat."
@@ -917,35 +935,33 @@ print_success "All Services"
 }
 
 # --- Install Menu (No changes needed, assuming menu.zip structure is consistent) ---
+#Instal Menu
 function menu(){
     clear
     print_install "Memasang Menu Packet"
-    wget "${REPO}Menu/menu.zip" -O /tmp/menu.zip || print_error "Failed to download menu.zip."
-    if [ ! -f /tmp/menu.zip ]; then
-        print_error "Failed to download menu.zip. Menu will not be installed."
-        return 1
-    fi
-    unzip -o /tmp/menu.zip -d /tmp/menu_temp || print_error "Failed to unzip menu.zip." # Unzip ke direktori sementara
-    chmod +x /tmp/menu_temp/*
-    mv /tmp/menu_temp/* /usr/local/sbin/ || print_error "Failed to move menu files."
-    rm -rf /tmp/menu_temp || true
-    rm -f /tmp/menu.zip || true
-    print_success "Menu Packet"
+    wget ${REPO}Menu/menu.zip
+    unzip menu.zip
+    chmod +x menu/*
+    mv menu/* /usr/local/sbin
+    rm -rf menu
+    rm -rf menu.zip
 }
 
-# --- Create Default Profile & Cron Jobs (Cleaned and Adjusted) ---
+# Membaut Default Menu 
 function profile(){
 clear
     cat >/root/.profile <<EOF
 # ~/.profile: executed by Bourne-compatible login shells.
-if [ "\$BASH" ]; then
+if [ "$BASH" ]; then
     if [ -f ~/.bashrc ]; then
         . ~/.bashrc
     fi
 fi
 mesg n || true
-menu # Memastikan 'menu' dijalankan saat login
+menu
 EOF
+# --- Create Default Profile & Cron Jobs (Cleaned and Adjusted) ---
+
 mkdir -p /root/.info
 curl -sS "ipinfo.io/org?token=7a814b6263b02c" > /root/.info/.isp || true
 curl -sS "ipinfo.io/city?token=7a814b6263b02c" > /root/.info/.city || true # Pindahkan ini ke sini juga
