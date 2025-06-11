@@ -86,6 +86,7 @@ cleanup_old_installations() {
 
 start_and_verify_xray_service() {
     print_status "Starting XRAY service..."
+    # XRAY needs TLS certs and config.json to be generated first by Cloudflare SSL configurer
     sudo systemctl start xray.service || print_error "Failed to start XRAY service. Check logs: 'sudo journalctl -u xray --no-pager'"
     sleep 5 # Give XRAY a moment to start
 
@@ -127,7 +128,7 @@ read -p "Press Enter to continue..."
 # Store full domain for menu script
 echo "$FULL_DOMAIN" | sudo tee "$XRAY_CONFIG_DIR/domain.txt" &>/dev/null
 
-# Store Cloudflare API credentials securely for menu script
+# Store Cloudflare API credentials securely for menu script (for change_domain in menu)
 sudo mkdir -p "$XRAY_CONFIG_DIR"
 sudo tee "$XRAY_CONFIG_DIR/cf_api.conf" >/dev/null <<EOF_CF_API
 CLOUDFLARE_API_KEY="$CLOUDFLARE_API_KEY"
@@ -141,9 +142,9 @@ cleanup_old_installations
 # --- Call separate installer scripts ---
 # Execute XRAY Core Installer
 if [ ! -f "$XRAY_CORE_INSTALLER_SCRIPT" ]; then print_error "XRAY Core Installer script not found: $XRAY_CORE_INSTALLER_SCRIPT"; fi
-sudo bash "$XRAY_CORE_INSTALLER_SCRIPT" "$XRAY_BIN_PATH" "$XRAY_CONFIG_DIR" "$XRAY_LOG_DIR" "$XRAY_SERVICE_FILE" || print_error "XRAY Core Installation failed."
+sudo bash "$XRAY_CORE_INSTALLER_SCRIPT" "$XRAY_BIN_PATH" "$XRAY_CONFIG_DIR" "$XRAY_LOG_DIR" "$XRAY_SERVICE_FILE" "$FULL_DOMAIN" "$XRAY_TLS_DIR" || print_error "XRAY Core Installation failed." # Pass FULL_DOMAIN and XRAY_TLS_DIR for initial config.json
 
-# Execute Cloudflare SSL Configurer (which also generates initial config.json)
+# Execute Cloudflare SSL Configurer (which updates config.json)
 if [ ! -f "$CLOUDFLARE_SSL_CONFIGURER_SCRIPT" ]; then print_error "Cloudflare SSL Configurer script not found: $CLOUDFLARE_SSL_CONFIGURER_SCRIPT"; fi
 sudo bash "$CLOUDFLARE_SSL_CONFIGURER_SCRIPT" \
     "$XRAY_CONFIG_DIR" "$XRAY_TLS_DIR" "$ADMIN_EMAIL" "$CLOUDFLARE_API_KEY" "$FULL_DOMAIN" "$XRAY_BIN_PATH" "$XRAY_LOG_DIR" "$MY_PUBLIC_IP" || print_error "Cloudflare SSL Configuration failed."
@@ -151,7 +152,7 @@ DEFAULT_UUID_INSTALL=$(jq -r '.inbounds[] | select(.port == 443) | .settings.cli
 
 # Execute Menu Script Installer
 if [ ! -f "$MENU_SCRIPT_INSTALLER_SCRIPT" ]; then print_error "Menu Script Installer script not found: $MENU_SCRIPT_INSTALLER_SCRIPT"; fi
-sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" || print_error "Menu Script Installation failed."
+sudo bash "$MENU_SCRIPT_INSTALLER_SCRIPT" "$MENU_SCRIPT_PATH" "$XRAY_CONFIG_DIR/config.json" "$XRAY_CONFIG_DIR/domain.txt" "$XRAY_BIN_PATH" "$XRAY_TLS_DIR" "$XRAY_CONFIG_DIR" || print_error "Menu Script Installation failed."
 
 start_and_verify_xray_service
 
