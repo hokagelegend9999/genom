@@ -341,10 +341,10 @@ DATE=$(date +'%Y-%m-%d')
 # Status Expired Active
 Info="(${green}Active${NC})"
 Error="(${RED}ExpiRED${NC})"
-today=`date +"%Y-%m-%d"` # Menggunakan date langsung
-Exp1=$(curl -sS --max-time 10 $izinsc | grep "$MYIP" | awk '{print $4}')
-if [[ "$today" < "<span class="math-inline">Exp1" \]\]; then
-sts\="</span>{Info}"
+today=$(date +"%Y-%m-%d") # Menggunakan date langsung
+Exp1=$(curl -sS --max-time 10 "$izinsc" | grep "$MYIP" | awk '{print $4}')
+if [[ "$today" < "$Exp1" ]]; then # Baris ini dikoreksi
+    sts="${Info}"                 # Baris ini dikoreksi
 else
     sts="${Error}"
 fi
