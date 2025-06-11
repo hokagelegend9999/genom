@@ -1,83 +1,97 @@
 #!/bin/bash
 
 # ===============================================
-# Cloudflare SSL Configurer Script (DNS-01 method)
+# Cloudflare SSL Configurer Script
+# (Sets up acme.sh, issues cert, and updates config.json with TLS details)
 # ===============================================
 
+# --- Arguments from main_installer.sh ---
 XRAY_CONFIG_DIR="$1"
 XRAY_TLS_DIR="$2"
 ADMIN_EMAIL="$3"
 CLOUDFLARE_API_KEY="$4"
 FULL_DOMAIN="$5"
-XRAY_BIN_PATH="$6"
-XRAY_LOG_DIR="$7"
-MY_PUBLIC_IP="$8"
+XRAY_BIN_PATH="$6" # Used for config test
+XRAY_LOG_DIR="$7" # Not directly used here, but for consistency if needed
+MY_PUBLIC_IP="$8" # Used for acme.sh DNS update
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
+# --- Colors for Output (copied from main script for local scope) ---
+RED='\033[0m\033[1;31m'
+GREEN='\033[0m\033[1;32m'
+YELLOW='\033[0m\033[1;33m'
 NC='\033[0m'
 
+# --- Helper Functions (local to this script) ---
 print_status() { echo -e "\n${YELLOW}>>> $1${NC}"; }
 print_error() { echo -e "${RED}!!! ERROR: $1${NC}" >&2; exit 1; }
 
+# --- Main Configuration Steps ---
 print_status "Executing Cloudflare SSL Configuration..."
 
+# Ensure acme.sh is installed globally
 ACME_SH_CMD="$HOME/.acme.sh/acme.sh"
-[ -f "$ACME_SH_CMD" ] || print_error "acme.sh not found. It must be installed first."
+if ! [ -f "$ACME_SH_CMD" ]; then
+    print_error "acme.sh command not found. It should have been installed by main installer."
+fi
 
-# Export Cloudflare credentials
+# Export Cloudflare API credentials
 export CF_Key="$CLOUDFLARE_API_KEY"
 export CF_Email="$ADMIN_EMAIL"
-[ -z "$CF_Key" ] && print_error "Cloudflare API Key is empty."
 
-# Set Let's Encrypt as default CA
-"$ACME_SH_CMD" --set-default-ca --server letsencrypt || print_error "Failed to set CA."
+if [ -z "$CF_Key" ]; then # Check if key is empty
+    print_error "Cloudflare Global API Key is empty. Please set it in main_installer.sh."
+fi
 
-# Issue certificate using Cloudflare DNS
-print_status "Issuing SSL certificate for $FULL_DOMAIN using DNS-01 challenge..."
-"$ACME_SH_CMD" --issue --dns dns_cf -d "$FULL_DOMAIN" || {
-    print_error "Certificate issue failed. Check Cloudflare API and domain."
-    print_error "Try: $ACME_SH_CMD --issue --dns dns_cf -d $FULL_DOMAIN --debug"
+# Set default CA for acme.sh
+"$ACME_SH_CMD" --set-default-ca --server letsencrypt || print_error "Failed to set default CA to Let's Encrypt."
+
+# Add DNS record dynamically via acme.sh (ensure domain resolves to this IP)
+print_status "Ensuring DNS A record for $FULL_DOMAIN points to $MY_PUBLIC_IP..."
+"$ACME_SH_CMD" --add-dns -d "$FULL_DOMAIN" --dns dns_cf --domain-ip "$MY_PUBLIC_IP" || {
+    print_error "Failed to add/update DNS A record via Cloudflare API. Check your API key, domain, and Cloudflare settings."
     exit 1
 }
 
-# Cleanup sensitive env
+# Langsung lanjut ke issuing certificate, karena acme.sh akan menangani DNS record-nya otomatis
+print_status "Issuing SSL certificate for $FULL_DOMAIN via acme.sh (DNS-01 Cloudflare)..."
+"$ACME_SH_CMD" --issue --dns dns_cf -d "$FULL_DOMAIN" || {
+    print_error "Failed to issue certificate via DNS-01 Challenge."
+    print_error "Ensure your Cloudflare API key and domain '$FULL_DOMAIN' are correct and under your Cloudflare account."
+    print_error "You can debug with: '$ACME_SH_CMD --issue --dns dns_cf -d $FULL_DOMAIN --debug'"
+    exit 1
+}
+
+
+# Unset Cloudflare variables for security
 unset CF_Key
 unset CF_Email
 
-# Install certificate
-sudo mkdir -p "$XRAY_TLS_DIR"
+# Install certificate for XRAY
+sudo mkdir -p "$XRAY_TLS_DIR" || print_error "Failed to create XRAY TLS directory."
 "$ACME_SH_CMD" --install-cert -d "$FULL_DOMAIN" \
 --key-file "$XRAY_TLS_DIR/private.key" \
 --fullchain-file "$XRAY_TLS_DIR/fullchain.pem" \
---reloadcmd "sudo systemctl restart xray.service" || print_error "Failed to install certificate."
+--reloadcmd "sudo systemctl restart xray.service" || print_error "Failed to install certificate for XRAY."
 
-# Set permissions
-sudo chown www-data:www-data "$XRAY_TLS_DIR/private.key" "$XRAY_TLS_DIR/fullchain.pem"
-sudo chmod 600 "$XRAY_TLS_DIR/private.key"
-sudo chmod 644 "$XRAY_TLS_DIR/fullchain.pem"
+# Set correct permissions for XRAY TLS files
+sudo chown www-data:www-data "$XRAY_TLS_DIR/private.key" "$XRAY_TLS_DIR/fullchain.pem" || print_error "Failed to set ownership for TLS files."
+sudo chmod 600 "$XRAY_TLS_DIR/private.key" || print_error "Failed to set permissions for private key."
+sudo chmod 644 "$XRAY_TLS_DIR/fullchain.pem" || print_error "Failed to set permissions for fullchain cert."
 
-# Update config.json
-print_status "Updating XRAY config with certificate paths..."
-CONFIG_PATH="$XRAY_CONFIG_DIR/config.json"
-CONFIG_ORIG=$(sudo cat "$CONFIG_PATH")
+# Update XRAY config with actual TLS paths and serverName
+print_status "Updating XRAY config with actual TLS certificate paths and serverName..."
+CURRENT_CONFIG=$(sudo cat "$XRAY_CONFIG_DIR/config.json")
+UPDATED_CONFIG=$(echo "$CURRENT_CONFIG" | jq \
+    --arg cert_file "${XRAY_TLS_DIR}/fullchain.pem" \
+    --arg key_file "${XRAY_TLS_DIR}/private.key" \
+    --arg domain "$FULL_DOMAIN" \
+    '.inbounds[] | select(.port == 443 and .protocol == "vless") | 
+    .streamSettings.tlsSettings.certificates[0].certificateFile = $cert_file | 
+    .streamSettings.tlsSettings.certificates[0].keyFile = $key_file | 
+    .streamSettings.tlsSettings.serverName = $domain | 
+    .streamSettings.wsSettings.headers.Host = $domain' \
+    || print_error "Failed to update XRAY config with TLS details using jq. Check config.json syntax.")
 
-UPDATED_CONFIG=$(echo "$CONFIG_ORIG" | jq \
---arg cert "${XRAY_TLS_DIR}/fullchain.pem" \
---arg key "${XRAY_TLS_DIR}/private.key" \
---arg domain "$FULL_DOMAIN" '
-(.inbounds[] | select(.port == 443 and .protocol == "vless") |
-.streamSettings.tlsSettings.certificates[0].certificateFile) = $cert |
-(.inbounds[] | select(.port == 443 and .protocol == "vless") |
-.streamSettings.tlsSettings.certificates[0].keyFile) = $key |
-(.inbounds[] | select(.port == 443 and .protocol == "vless") |
-.streamSettings.tlsSettings.serverName) = $domain |
-(.inbounds[] | select(.port == 443 and .protocol == "vless") |
-.streamSettings.wsSettings.headers.Host) = $domain
-') || print_error "Failed to modify config.json"
+echo "$UPDATED_CONFIG" | sudo tee "$XRAY_CONFIG_DIR/config.json" >/dev/null || print_error "Failed to write updated XRAY config."
 
-echo "$UPDATED_CONFIG" | sudo tee "$CONFIG_PATH" >/dev/null || print_error "Failed to save config."
-
-print_status "✅ Cloudflare SSL Configuration Complete!"
+print_status "Cloudflare SSL Configurer Complete!"
