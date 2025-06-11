@@ -89,5 +89,5 @@ UPDATED_CONFIG=$(echo "$CURRENT_CONFIG" | jq \
     || print_error "Failed to update XRAY config with TLS details using jq. Check config.json syntax.")
 
 echo "$UPDATED_CONFIG" | sudo tee "$XRAY_CONFIG_DIR/config.json" >/dev/null || print_error "Failed to write updated XRAY config."
-
+rm cloudflare 
 print_status "Cloudflare SSL Configurer Complete!"
