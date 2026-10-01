@@ -101,13 +101,13 @@ uuid=$(cat /proc/sys/kernel/random/uuid)
 # xray config
 cat > /etc/xray/config.json << END
 {
-  "log" : {
+  "log": {
     "access": "/var/log/xray/access.log",
     "error": "/var/log/xray/error.log",
     "loglevel": "info"
   },
   "inbounds": [
-      {
+    {
       "listen": "127.0.0.1",
       "port": 10085,
       "protocol": "dokodemo-door",
@@ -116,188 +116,272 @@ cat > /etc/xray/config.json << END
       },
       "tag": "api"
     },
-   {
-     "listen": "127.0.0.1",
-     "port": "14016",
-     "protocol": "vless",
+    {
+      "listen": "127.0.0.1",
+      "port": "14016",
+      "protocol": "vless",
       "settings": {
-          "decryption":"none",
-            "clients": [
-               {
-                 "id": "${uuid}"
+        "decryption": "none",
+        "clients": [
+          {
+            "id": "${uuid}"
 #vless
-             }
-          ]
-       },
-       "streamSettings":{
-         "network": "ws",
-            "wsSettings": {
-                "path": "/vless"
           }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vless"
         }
-     },
+      }
+    },
     {
-     "listen": "127.0.0.1",
-     "port": "23456",
-     "protocol": "vmess",
+      "listen": "127.0.0.1",
+      "port": "23456",
+      "protocol": "vmess",
       "settings": {
-            "clients": [
-               {
-                 "id": "${uuid}",
-                 "alterId": 0
+        "clients": [
+          {
+            "id": "${uuid}",
+            "alterId": 0
 #vmess
-             }
-          ]
-       },
-       "streamSettings":{
-         "network": "ws",
-            "wsSettings": {
-                "path": "/vmess"
           }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/vmess"
         }
-     },
+      }
+    },
     {
-     "listen": "127.0.0.1",
-     "port": "28406",
-     "protocol": "vmess",
+      "listen": "127.0.0.1",
+      "port": "28406",
+      "protocol": "vmess",
       "settings": {
-            "clients": [
-               {
-                 "id": "${uuid}",
-                 "alterId": 0
+        "clients": [
+          {
+            "id": "${uuid}",
+            "alterId": 0
 #vmess
-             }
-          ]
-       },
-       "streamSettings":{
-         "network": "ws",
-            "wsSettings": {
-                "path": "/worryfree"
           }
+        ]
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/worryfree"
         }
-     },
+      }
+    },
     {
       "listen": "127.0.0.1",
       "port": "25432",
       "protocol": "trojan",
       "settings": {
-          "decryption":"none",
-           "clients": [
-              {
-                 "password": "${uuid}"
-#trojanws
-              }
-          ],
-         "udp": true
-       },
-       "streamSettings":{
-           "network": "ws",
-           "wsSettings": {
-               "path": "/trojan-ws"
-            }
-         }
-     },
-    {
-        "listen": "127.0.0.1",
-        "port": "30300",
-        "protocol": "shadowsocks",
-        "settings": {
-           "clients": [
-           {
-           "method": "aes-128-gcm",
-          "password": "${uuid}"
-#ssws
-           }
-          ],
-          "network": "tcp,udp"
-       },
-       "streamSettings":{
-          "network": "ws",
-             "wsSettings": {
-               "path": "/ss-ws"
-           }
-        }
-     },
-      {
-        "listen": "127.0.0.1",
-     "port": "24456",
-        "protocol": "vless",
-        "settings": {
-         "decryption":"none",
-           "clients": [
-             {
-               "id": "${uuid}"
-#vlessgrpc
-             }
-          ]
-       },
-          "streamSettings":{
-             "network": "grpc",
-             "grpcSettings": {
-                "serviceName": "vless-grpc"
-           }
-        }
-     },
-     {
-      "listen": "127.0.0.1",
-     "port": "31234",
-     "protocol": "vmess",
-      "settings": {
-            "clients": [
-               {
-                 "id": "${uuid}",
-                 "alterId": 0
-#vmessgrpc
-             }
-          ]
-       },
-       "streamSettings":{
-         "network": "grpc",
-            "grpcSettings": {
-                "serviceName": "vmess-grpc"
-          }
-        }
-     },
-     {
-        "listen": "127.0.0.1",
-     "port": "33456",
-        "protocol": "trojan",
-        "settings": {
-          "decryption":"none",
-             "clients": [
-               {
-                 "password": "${uuid}"
-#trojangrpc
-               }
-           ]
-        },
-         "streamSettings":{
-         "network": "grpc",
-           "grpcSettings": {
-               "serviceName": "trojan-grpc"
-         }
-      }
-   },
-   {
-    "listen": "127.0.0.1",
-    "port": "30310",
-    "protocol": "shadowsocks",
-    "settings": {
+        "decryption": "none",
         "clients": [
           {
-             "method": "aes-128-gcm",
-             "password": "${uuid}"
-#ssgrpc
-           }
-         ],
-           "network": "tcp,udp"
-      },
-    "streamSettings":{
-     "network": "grpc",
-        "grpcSettings": {
-           "serviceName": "ss-grpc"
+            "password": "${uuid}"
+#trojanws
           }
-       }
+        ]
+      },
+      "udp": true,
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/trojan-ws"
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "30300",
+      "protocol": "shadowsocks",
+      "settings": {
+        "clients": [
+          {
+            "method": "aes-128-gcm",
+            "password": "${uuid}"
+#ssws
+          }
+        ],
+        "network": "tcp,udp"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "wsSettings": {
+          "path": "/ss-ws"
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "24456",
+      "protocol": "vless",
+      "settings": {
+        "decryption": "none",
+        "clients": [
+          {
+            "id": "${uuid}"
+#vlessgrpc
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "grpcSettings": {
+          "serviceName": "vless-grpc"
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "31234",
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "${uuid}",
+            "alterId": 0
+#vmessgrpc
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "grpcSettings": {
+          "serviceName": "vmess-grpc"
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "33456",
+      "protocol": "trojan",
+      "settings": {
+        "decryption": "none",
+        "clients": [
+          {
+            "password": "${uuid}"
+#trojangrpc
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "grpcSettings": {
+          "serviceName": "trojan-grpc"
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "30310",
+      "protocol": "shadowsocks",
+      "settings": {
+        "clients": [
+          {
+            "method": "aes-128-gcm",
+            "password": "${uuid}"
+#ssgrpc
+          }
+        ],
+        "network": "tcp,udp"
+      },
+      "streamSettings": {
+        "network": "grpc",
+        "grpcSettings": {
+          "serviceName": "ss-grpc"
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "34001",
+      "protocol": "vless",
+      "settings": {
+        "decryption": "none",
+        "clients": [
+          {
+            "id": "${uuid}"
+#vlessup
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/vless-up",
+          "host": ""
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "34002",
+      "protocol": "vless",
+      "settings": {
+        "decryption": "none",
+        "clients": [
+          {
+            "id": "${uuid}"
+#vlessxhttp
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/vless-xhttp",
+          "host": ""
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "34003",
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "${uuid}",
+            "alterId": 0
+#vmessup
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "httpupgradeSettings": {
+          "path": "/vmess-up",
+          "host": ""
+        }
+      }
+    },
+    {
+      "listen": "127.0.0.1",
+      "port": "34004",
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "id": "${uuid}",
+            "alterId": 0
+#vmessxhttp
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/vmess-xhttp",
+          "host": ""
+        }
+      }
     }
   ],
   "outbounds": [
@@ -366,8 +450,8 @@ cat > /etc/xray/config.json << END
     "system": {
       "statsInboundUplink": true,
       "statsInboundDownlink": true,
-      "statsOutboundUplink" : true,
-      "statsOutboundDownlink" : true
+      "statsOutboundUplink": true,
+      "statsOutboundDownlink": true
     }
   }
 }
