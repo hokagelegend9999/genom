@@ -167,12 +167,20 @@ sed -i '/#vless$/a\#vl '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vlessgrpc$/a\#vlg '"$user $exp"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessup$/a\#vlup '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessxhttp$/a\#vlxh '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 vlesslink1="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&host=${domain}&type=ws&sni=${domain}#${user}"
 vlesslink2="vless://${uuid}@${domain}:80?path=/vless&security=none&encryption=none&host=${domain}&type=ws#${user}"
 vlesslink3="vless://${uuid}@${domain}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=vless-grpc&sni=${domain}#${user}"
+vlesslink4="vless://${uuid}@${domain}:443?path=/vless-up&security=tls&encryption=none&host=${domain}&type=httpupgrade&sni=${domain}&alpn=http/1.1#${user}"
+vlesslink5="vless://${uuid}@${domain}:443?path=/vless-xhttp&security=tls&encryption=none&host=${domain}&type=xhttp&sni=${domain}&alpn=h2,http/1.1#${user}"
 vless1="vless://${uuid}@${domain}:443?path=/vless%26security=tls%26encryption=none%26host=${domain}%26type=ws%26sni=${domain}#${user}"
 vless2="vless://${uuid}@${domain}:80?path=/vless%26security=none%26encryption=none%26host=${domain}%26type=ws#${user}"
 vless3="vless://${uuid}@${domain}:443?mode=gun%26security=tls%26encryption=none%26type=grpc%26serviceName=vless-grpc%26sni=${domain}#${user}"
+vless4="vless://${uuid}@${domain}:443?path=/vless-up%26security=tls%26encryption=none%26host=${domain}%26type=httpupgrade%26sni=${domain}%26alpn=http/1.1#${user}"
+vless5="vless://${uuid}@${domain}:443?path=/vless-xhttp%26security=tls%26encryption=none%26host=${domain}%26type=xhttp%26sni=${domain}%26alpn=h2,http/1.1#${user}"
 cat > /home/vps/public_html/vless-$user.txt <<-END
 _______________________________
 Format Vless WS (CDN)
@@ -266,6 +274,12 @@ Link NTLS    :
 Link gRPC    :
 <code>${vless3}</code>
 ◇━━━━━━━━━━━━━━━━━◇
+Link UPGRADE :
+<code>${vless4}</code>
+◇━━━━━━━━━━━━━━━━━◇
+Link XHTTP   :
+<code>${vless5}</code>
+◇━━━━━━━━━━━━━━━━━◇
 Format OpenClash :
 http://$domain:89/vless-$user.txt
 ◇━━━━━━━━━━━━━━━━━◇
@@ -302,6 +316,12 @@ Link NTLS    :
 ◇━━━━━━━━━━━━━━━━━◇
 Link GRPC    :
 <code>${vless3}</code>
+◇━━━━━━━━━━━━━━━━━◇
+Link UPGRADE :
+<code>${vless4}</code>
+◇━━━━━━━━━━━━━━━━━◇
+Link XHTTP   :
+<code>${vless5}</code>
 ◇━━━━━━━━━━━━━━━━━◇
 Format OpenClash :
 http://$domain:89/vless-$user.txt
@@ -353,6 +373,12 @@ echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}
 echo -e "$COLOR1 ${NC} ${COLOR1}Link gRPC               ${WH}:${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1${NC}${WH}${vlesslink3}${NC}"  | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ${NC} ${COLOR1}Link HTTP UPGRADE       ${WH}:${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1${NC}${WH}${vlesslink4}${NC}"  | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ${NC} ${COLOR1}Link xHTTP              ${WH}:${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1${NC}${WH}${vlesslink5}${NC}"  | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ${NC} ${WH}Format Openclash ${COLOR1}: " | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ${NC} ${WH}http://$domain:89/vless-$user.txt${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
@@ -401,12 +427,20 @@ sed -i '/#vless$/a\#vl '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vlessgrpc$/a\#vlg '"$user $exp"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessup$/a\#vlup '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessxhttp$/a\#vlxh '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 vlesslink1="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&host=${domain}&type=ws&sni=${domain}#${user}"
 vlesslink2="vless://${uuid}@${domain}:80?path=/vless&security=none&encryption=none&host=${domain}&type=ws#${user}"
 vlesslink3="vless://${uuid}@${domain}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=vless-grpc&sni=${domain}#${user}"
+vlesslink4="vless://${uuid}@${domain}:443?path=/vless-up&security=tls&encryption=none&host=${domain}&type=httpupgrade&sni=${domain}&alpn=http/1.1#${user}"
+vlesslink5="vless://${uuid}@${domain}:443?path=/vless-xhttp&security=tls&encryption=none&host=${domain}&type=xhttp&sni=${domain}&alpn=h2,http/1.1#${user}"
 vless1="vless://${uuid}@${domain}:443?path=/vless%26security=tls%26encryption=none%26host=${domain}%26type=ws%26sni=${domain}#${user}"
 vless2="vless://${uuid}@${domain}:80?path=/vless%26security=none%26encryption=none%26host=${domain}%26type=ws#${user}"
 vless3="vless://${uuid}@${domain}:443?mode=gun%26security=tls%26encryption=none%26type=grpc%26serviceName=vless-grpc%26sni=${domain}#${user}"
+vless4="vless://${uuid}@${domain}:443?path=/vless-up%26security=tls%26encryption=none%26host=${domain}%26type=httpupgrade%26sni=${domain}%26alpn=http/1.1#${user}"
+vless5="vless://${uuid}@${domain}:443?path=/vless-xhttp%26security=tls%26encryption=none%26host=${domain}%26type=xhttp%26sni=${domain}%26alpn=h2,http/1.1#${user}"
 clear
 cat> /etc/cron.d/trialvless${user} << END
 SHELL=/bin/sh
@@ -505,6 +539,12 @@ Link NTLS    :
 Link GRPC    :
 <code>${vless3}</code>
 ◇━━━━━━━━━━━━━━━━━◇
+Link UPGRADE :
+<code>${vless4}</code>
+◇━━━━━━━━━━━━━━━━━◇
+Link XHTTP   :
+<code>${vless5}</code>
+◇━━━━━━━━━━━━━━━━━◇
 Format OpenClash :
 http://$domain:89/vless-$user.txt
 ◇━━━━━━━━━━━━━━━━━◇
@@ -546,6 +586,12 @@ echo -e "$COLOR1${NC}${WH}${vlesslink2}${NC}"  | tee -a /etc/vless/akun/log-crea
 echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ${NC} ${COLOR1}Link gRPC               ${WH}:${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1${NC}${WH}${vlesslink3}${NC}"  | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ${NC} ${COLOR1}Link HTTP UPGRADE       ${WH}:${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1${NC}${WH}${vlesslink4}${NC}"  | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1 ${NC} ${COLOR1}Link xHTTP              ${WH}:${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
+echo -e "$COLOR1${NC}${WH}${vlesslink5}${NC}"  | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ${NC} ${WH}Format Openclash ${COLOR1}: " | tee -a /etc/vless/akun/log-create-${user}.log
 echo -e "$COLOR1 ${NC} ${WH}http://$domain:89/vless-$user.txt${NC}" | tee -a /etc/vless/akun/log-create-${user}.log
@@ -695,6 +741,8 @@ exp3=$(($exp2 + $masaaktif))
 exp4=`date -d "$exp3 days" +"%Y-%m-%d"`
 sed -i "s/#vl $user $exp/#vl $user $exp4/g" /etc/xray/config.json
 sed -i "s/#vlg $user $exp/#vlg $user $exp4/g" /etc/xray/config.json
+sed -i "s/#vlup $user $exp/#vlup $user $exp4/g" /etc/xray/config.json
+sed -i "s/#vlxh $user $exp/#vlxh $user $exp4/g" /etc/xray/config.json
 clear
 TEXT="
 <code>◇━━━━━━━━━━━━━━◇</code>
@@ -787,6 +835,8 @@ clear
 echo "### $user $exp $uuid" >> /etc/vless/akundelete
 sed -i "/^#vl $user $exp/,/^},{/d" /etc/xray/config.json
 sed -i "/^#vlg $user $exp/,/^},{/d" /etc/xray/config.json
+sed -i "/^#vlup $user $exp/,/^},{/d" /etc/xray/config.json
+sed -i "/^#vlxh $user $exp/,/^},{/d" /etc/xray/config.json
 clear
 clear
 rm /etc/vless/${user}IP >/dev/null 2>&1
@@ -1063,7 +1113,12 @@ sed -i '/#vless$/a\#vl '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vlessgrpc$/a\#vlg '"$user $exp"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessup$/a\#vlup '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessxhttp$/a\#vlxh '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 sed -i "/^### $user $exp $uuid/d" /etc/vless/listlock
+
 systemctl restart xray
 TEXT="
 <code>◇━━━━━━━━━━━━━━◇</code>
@@ -1159,6 +1214,10 @@ sed -i '/#vless$/a\#vl '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vlessgrpc$/a\#vlg '"$user $exp"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessup$/a\#vlup '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessxhttp$/a\#vlxh '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 echo "${iplim}" >/etc/vless/${user}IP
 c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
 d=$((${c} * 1024 * 1024 * 1024))
@@ -1247,6 +1306,10 @@ uuid=$(grep -E "^### " "/etc/vless/userQuota" | cut -d ' ' -f 4 | sed -n "${CLIE
 sed -i '/#vless$/a\#vl '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vlessgrpc$/a\#vlg '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessup$/a\#vlup '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessxhttp$/a\#vlxh '"$user $exp"'\
 },{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
 sed -i "/^### $user $exp $uuid/d" /etc/vless/userQuota
 systemctl restart xray
