@@ -167,6 +167,10 @@ sed -i '/#vmess$/a\#vm '"$user $exp"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vmessgrpc$/a\#vmg '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessup$/a\#vmup '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessxhttp$/a\#vmxh '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 asu=`cat<<EOF
 {
 "v": "2",
@@ -212,12 +216,48 @@ grpc=`cat<<EOF
 "tls": "tls"
 }
 EOF`
+upg=`cat<<EOF
+{
+"v": "2",
+"ps": "${user}",
+"add": "${domain}",
+"port": "443",
+"id": "${uuid}",
+"aid": "0",
+"net": "httpupgrade",
+"path": "/vmess-up",
+"type": "none",
+"host": "${domain}",
+"tls": "tls",
+"sni": "${domain}",
+"alpn": "http/1.1"
+}
+EOF`
+xhtt=`cat<<EOF
+{
+"v": "2",
+"ps": "${user}",
+"add": "${domain}",
+"port": "443",
+"id": "${uuid}",
+"aid": "0",
+"net": "xhttp",
+"path": "/vmess-xhttp",
+"type": "none",
+"host": "${domain}",
+"tls": "tls",
+"sni": "${domain}",
+"alpn": "h2,http/1.1"
+}
+EOF`
 vmess_base641=$( base64 -w 0 <<< $vmess_json1)
 vmess_base642=$( base64 -w 0 <<< $vmess_json2)
 vmess_base643=$( base64 -w 0 <<< $vmess_json3)
 vmesslink1="vmess://$(echo $asu | base64 -w 0)"
 vmesslink2="vmess://$(echo $ask | base64 -w 0)"
 vmesslink3="vmess://$(echo $grpc | base64 -w 0)"
+vmesslink4="vmess://$(echo $upg | base64 -w 0)"
+vmesslink5="vmess://$(echo $xhtt | base64 -w 0)"
 VMESS_WS=`cat<<EOF
 {
 "v": "2",
@@ -363,6 +403,12 @@ Link gRPC : vmess://$(echo $VMESS_GRPC | base64 -w 0)
 _______________________________________________________
 Link Opok : vmess://$(echo $VMESS_OPOK | base64 -w 0)
 _______________________________________________________
+Link UPGRADE :
+<code>${vmesslink4}</code>
+_______________________________________________________
+Link XHTTP   :
+<code>${vmesslink5}</code>
+_______________________________________________________
 END
 if [ ${Quota} = '9999' ]; then
 TEXT="
@@ -485,6 +531,12 @@ echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}
 echo -e "$COLOR1 ${NC} ${COLOR1}Link Websocket gRPC     ${WH}: ${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
 echo -e "$COLOR1${NC}${WH}${vmesslink3}${NC}"  | tee -a /etc/vmess/akun/log-create-${user}.log
 echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
+echo -e "$COLOR1 ${NC} ${COLOR1}Link HTTP UPGRADE       ${WH}: ${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
+echo -e "$COLOR1${NC}${WH}${vmesslink4}${NC}"  | tee -a /etc/vmess/akun/log-create-${user}.log
+echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
+echo -e "$COLOR1 ${NC} ${COLOR1}Link xHTTP              ${WH}: ${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
+echo -e "$COLOR1${NC}${WH}${vmesslink5}${NC}"  | tee -a /etc/vmess/akun/log-create-${user}.log
+echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
 echo -e "$COLOR1 ${NC} ${WH}Format Openclash ${COLOR1}:" | tee -a /etc/vmess/akun/log-create-${user}.log
 echo -e "$COLOR1 ${NC} ${WH}http://$domain:89/vmess-$user.txt${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
 echo -e "$COLOR1 ◇━━━━━━━━━━━━━━━━━◇ ${NC}" | tee -a /etc/vmess/akun/log-create-${user}.log
@@ -525,6 +577,10 @@ exp=`date -d "$masaaktif days" +"%Y-%m-%d"`
 sed -i '/#vmess$/a\#vm '"$user $exp"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vmessgrpc$/a\#vmg '"$user $exp $uuid"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessup$/a\#vmup '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessxhttp$/a\#vmxh '"$user $exp"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 cat> /etc/cron.d/trialvmess${user} << EOF
 SHELL=/bin/sh
@@ -858,6 +914,8 @@ exp3=$(($exp2 + $masaaktif))
 exp4=`date -d "$exp3 days" +"%Y-%m-%d"`
 sed -i "s/#vm $user $exp/#vm $user $exp4/g" /etc/xray/config.json
 sed -i "s/#vmg $user $exp/#vmg $user $exp4/g" /etc/xray/config.json
+sed -i "s/#vmup $user $exp/#vmup $user $exp4/g" /etc/xray/config.json
+sed -i "s/#vmxh $user $exp/#vmxh $user $exp4/g" /etc/xray/config.json
 clear
 TEXT="
 <code>◇━━━━━━━━━━━━━━◇</code>
@@ -1041,6 +1099,8 @@ clear
 echo "### $user $exp $uuid" >> /etc/vmess/akundelete
 sed -i "/^#vmg $user $exp/,/^},{/d" /etc/xray/config.json
 sed -i "/^#vm $user $exp/,/^},{/d" /etc/xray/config.json
+sed -i "/^#vmup $user $exp/,/^},{/d" /etc/xray/config.json
+sed -i "/^#vmxh $user $exp/,/^},{/d" /etc/xray/config.json
 rm /etc/vmess/${user}IP
 clear
 rm /home/vps/public_html/vmess-$user.txt >/dev/null 2>&1
@@ -1411,6 +1471,10 @@ sed -i '/#vmess$/a\#vm '"$user $exp"'\
 sed -i '/#vmessgrpc$/a\#vmg '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 sed -i "/^### $user $exp $uuid/d" /etc/vmess/listlock
+sed -i '/#vmessup$/a\#vmup '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessxhttp$/a\#vmxh '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 systemctl restart xray
 TEXT="
 <code>◇━━━━━━━━━━━━━━◇</code>
@@ -1507,6 +1571,10 @@ sed -i '/#vmess$/a\#vm '"$user $exp"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vmessgrpc$/a\#vmg '"$user $exp $uuid"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessup$/a\#vmup '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessxhttp$/a\#vmxh '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 echo "${iplim}" >/etc/vmess/${user}IP
 c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
 d=$((${c} * 1024 * 1024 * 1024))
@@ -1599,6 +1667,10 @@ uuid=$(grep -E "^### " "/etc/vmess/userQuota" | cut -d ' ' -f 4 | sed -n "${CLIE
 sed -i '/#vmess$/a\#vm '"$user $exp"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 sed -i '/#vmessgrpc$/a\#vmg '"$user $exp $uuid"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessup$/a\#vmup '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessxhttp$/a\#vmxh '"$user $exp"'\
 },{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
 sed -i "/^### $user $exp $uuid/d" /etc/vmess/userQuota
 systemctl restart xray
