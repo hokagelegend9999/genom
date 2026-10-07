@@ -1012,8 +1012,31 @@ echo -e "$COLOR1━━━━━━━━━━━━━━━━━━━━━�
 echo " Select the existing client to view the config"
 echo " ketik [0] kembali kemenu"
 echo -e "$COLOR1━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-echo "     No  User   Expired"
-grep -E "^#vl " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | nl -s ') '
+
+echo -e "     No  User                 Expired       Sisa Hari"
+echo -e "     ──────────────────────────────────────────────────"
+now_date=$(date +%Y-%m-%d)
+d_now=$(date -d "$now_date" +%s)
+num=1
+
+while read -r _ user exp _; do
+    d_exp=$(date -d "$exp" +%s 2>/dev/null || echo 0)
+    if [[ $d_exp -gt 0 ]]; then
+        sisa=$(( (d_exp - d_now) / 86400 ))
+        if [[ $sisa -lt 0 ]]; then
+            sisa_str="${RED}Expired${NC}"
+        elif [[ $sisa -eq 0 ]]; then
+            sisa_str="${YELLOW}Hari ini${NC}"
+        else
+            sisa_str="${GREEN}${sisa} Hari${NC}"
+        fi
+    else
+        sisa_str="-"
+    fi
+    printf "     %2d) %-20s %-12s %b\n" "$num" "$user" "$exp" "$sisa_str"
+    ((num++))
+done < <(grep -E "^#vl " "/etc/xray/config.json")
+
 until [[ ${CLIENT_NUMBER} -ge 1 && ${CLIENT_NUMBER} -le ${NUMBER_OF_CLIENTS} ]]; do
 if [[ ${CLIENT_NUMBER} == '1' ]]; then
 read -rp "Select one client [1]: " CLIENT_NUMBER
